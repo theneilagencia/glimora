@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { 
   Building2, 
@@ -10,7 +11,8 @@ import {
   MoreVertical,
   ExternalLink,
   TrendingUp,
-  Users
+  Users,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,64 +33,21 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { fetchWithAuth } from "@/lib/api";
 
-const accounts = [
-  {
-    id: "1",
-    name: "TechCorp Brasil",
-    industry: "Tecnologia",
-    website: "https://techcorp.com.br",
-    signalScore: 85,
-    priority: 1,
-    decisorCount: 5,
-    signalCount: 23,
-    lastSignalAt: "2h atrás"
-  },
-  {
-    id: "2",
-    name: "Inovação SA",
-    industry: "Consultoria",
-    website: "https://inovacao.com.br",
-    signalScore: 92,
-    priority: 1,
-    decisorCount: 8,
-    signalCount: 31,
-    lastSignalAt: "4h atrás"
-  },
-  {
-    id: "3",
-    name: "Global Tech",
-    industry: "Software",
-    website: "https://globaltech.io",
-    signalScore: 67,
-    priority: 2,
-    decisorCount: 3,
-    signalCount: 12,
-    lastSignalAt: "1d atrás"
-  },
-  {
-    id: "4",
-    name: "Startup Hub",
-    industry: "Venture Capital",
-    website: "https://startuphub.vc",
-    signalScore: 78,
-    priority: 2,
-    decisorCount: 4,
-    signalCount: 18,
-    lastSignalAt: "6h atrás"
-  },
-  {
-    id: "5",
-    name: "Digital Solutions",
-    industry: "Marketing Digital",
-    website: "https://digitalsolutions.com",
-    signalScore: 54,
-    priority: 3,
-    decisorCount: 2,
-    signalCount: 8,
-    lastSignalAt: "3d atrás"
-  },
-];
+interface Account {
+  id: string;
+  name: string;
+  industry: string;
+  website?: string;
+  linkedinUrl?: string;
+  signalScore?: number;
+  priority?: number;
+  decisorCount?: number;
+  signalCount?: number;
+  lastSignalAt?: string;
+  createdAt: string;
+}
 
 function getScoreColor(score: number): string {
   if (score >= 80) return "text-green-400";
@@ -106,14 +65,100 @@ function getPriorityBadge(priority: number) {
   return colors[priority] || colors[3];
 }
 
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 60) return `${diffMins}m atras`;
+  if (diffHours < 24) return `${diffHours}h atras`;
+  return `${diffDays}d atras`;
+}
+
 export default function AccountsPage() {
+  const { getToken } = useAuth();
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    industry: "",
+    website: "",
+    linkedinUrl: ""
+  });
+
+  const fetchAccounts = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const data = await fetchWithAuth<Account[]>("/accounts", token);
+      setAccounts(data);
+    } catch (error) {
+      console.error("Error fetching accounts:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!formData.name || !formData.industry) return;
+    
+    setSaving(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      
+      await fetchWithAuth("/accounts", token, {
+        method: "POST",
+        body: JSON.stringify(formData)
+      });
+      
+      setFormData({ name: "", industry: "", website: "", linkedinUrl: "" });
+      setIsDialogOpen(false);
+      fetchAccounts();
+    } catch (error) {
+      console.error("Error creating account:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      
+      await fetchWithAuth(`/accounts/${id}`, token, {
+        method: "DELETE"
+      });
+      
+      fetchAccounts();
+    } catch (error) {
+      console.error("Error deleting account:", error);
+    }
+  };
 
   const filteredAccounts = accounts.filter(account =>
     account.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     account.industry.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -136,21 +181,46 @@ export default function AccountsPage() {
             <div className="space-y-4 mt-4">
               <div className="space-y-2">
                 <Label className="text-slate-300">Nome da Empresa</Label>
-                <Input className="bg-slate-700 border-slate-600 text-white" placeholder="Ex: TechCorp Brasil" />
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="Ex: TechCorp Brasil"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
-                <Label className="text-slate-300">Indústria</Label>
-                <Input className="bg-slate-700 border-slate-600 text-white" placeholder="Ex: Tecnologia" />
+                <Label className="text-slate-300">Industria</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="Ex: Tecnologia"
+                  value={formData.industry}
+                  onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-slate-300">Website</Label>
-                <Input className="bg-slate-700 border-slate-600 text-white" placeholder="https://" />
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="https://"
+                  value={formData.website}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-slate-300">LinkedIn URL</Label>
-                <Input className="bg-slate-700 border-slate-600 text-white" placeholder="https://linkedin.com/company/" />
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="https://linkedin.com/company/"
+                  value={formData.linkedinUrl}
+                  onChange={(e) => setFormData({ ...formData, linkedinUrl: e.target.value })}
+                />
               </div>
-              <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => setIsDialogOpen(false)}>
+              <Button 
+                className="w-full bg-blue-600 hover:bg-blue-700" 
+                onClick={handleSubmit}
+                disabled={saving || !formData.name || !formData.industry}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Adicionar Conta
               </Button>
             </div>
@@ -174,6 +244,17 @@ export default function AccountsPage() {
         </Button>
       </div>
 
+      {filteredAccounts.length === 0 ? (
+        <div className="text-center py-12">
+          <Building2 className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-white mb-2">Nenhuma conta encontrada</h3>
+          <p className="text-slate-400 text-sm">
+            {searchQuery 
+              ? "Tente ajustar a busca" 
+              : "Adicione sua primeira conta clicando no botao acima"}
+          </p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredAccounts.map((account, index) => (
           <motion.div
@@ -211,7 +292,10 @@ export default function AccountsPage() {
                       <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
                         Ver Sinais
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-400 hover:text-red-300 focus:text-red-300 focus:bg-slate-700">
+                      <DropdownMenuItem 
+                        className="text-red-400 hover:text-red-300 focus:text-red-300 focus:bg-slate-700"
+                        onClick={() => handleDelete(account.id)}
+                      >
                         Remover
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -235,11 +319,11 @@ export default function AccountsPage() {
                   <div className="flex items-center gap-4">
                     <span className="flex items-center gap-1">
                       <Users className="h-3 w-3" />
-                      {account.decisorCount} decisores
+                      {account.decisorCount || 0} decisores
                     </span>
-                    <span>{account.signalCount} sinais</span>
+                    <span>{account.signalCount || 0} sinais</span>
                   </div>
-                  <span>{account.lastSignalAt}</span>
+                  <span>{account.lastSignalAt || formatTimeAgo(account.createdAt)}</span>
                 </div>
 
                 {account.website && (
@@ -258,6 +342,7 @@ export default function AccountsPage() {
           </motion.div>
         ))}
       </div>
+      )}
     </div>
   );
 }
