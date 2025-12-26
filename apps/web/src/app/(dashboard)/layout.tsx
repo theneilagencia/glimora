@@ -77,7 +77,7 @@ export default function DashboardLayout({
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-lg border-b border-slate-700">
         <div className="flex items-center justify-between h-16 px-4">
           <Link href="/dashboard" className="flex items-center">
-            <Image src="/logo.png" alt="Glimora" width={120} height={32} className="h-8 w-auto" />
+            <Image src="/logo.png" alt="Glimora" width={48} height={13} className="h-3 w-auto" />
           </Link>
           <div className="flex items-center gap-4">
             <UserButton afterSignOutUrl="/" />
@@ -158,7 +158,7 @@ export default function DashboardLayout({
 
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block lg:w-64 lg:bg-slate-900 lg:border-r lg:border-slate-700">
         <Link href="/dashboard" className="flex h-16 items-center px-6 border-b border-slate-700">
-          <Image src="/logo.png" alt="Glimora" width={140} height={36} className="h-9 w-auto" />
+          <Image src="/logo.png" alt="Glimora" width={56} height={15} className="h-4 w-auto" />
         </Link>
         <nav className="p-4 space-y-1">
           {navigation.map((item) => (

@@ -23,7 +23,7 @@ export default function Home() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-lg border-b border-slate-700">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center">
-            <Image src="/logo.png" alt="Glimora" width={140} height={36} className="h-9 w-auto" />
+            <Image src="/logo.png" alt="Glimora" width={56} height={15} className="h-4 w-auto" />
           </div>
           <div className="flex items-center gap-4">
             <Button variant="ghost" className="text-slate-300 hover:text-white" onClick={() => router.push("/sign-in")}>
