@@ -45,13 +45,13 @@ export default function Home() {
             className="text-center max-w-4xl mx-auto"
           >
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
-              Inteligência de{" "}
+              A nova camada das{" "}
               <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                Autoridade Comercial
+                vendas B2B
               </span>
             </h1>
-            <p className="text-lg md:text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
-              Transforme sinais públicos do LinkedIn e da mídia em ações comerciais assistidas e visibilidade editorial estratégica.
+            <p className="text-lg md:text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
+              Chega de automação cega. Decida com base em sinais reais, posicione sua marca como referência e transforme autoridade executiva em receita com inteligência estratégica e timing editorial. Ative a autoridade do seu CEO e conquiste visibilidade com quem realmente decide.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-lg px-8" onClick={() => router.push("/sign-up")}>
