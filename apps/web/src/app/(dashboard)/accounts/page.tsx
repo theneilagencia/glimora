@@ -49,20 +49,21 @@ interface Account {
   createdAt: string;
 }
 
-function getScoreColor(score: number): string {
+function getScoreColor(score: number | undefined): string {
+  if (score === undefined) return "text-slate-400";
   if (score >= 80) return "text-green-400";
   if (score >= 60) return "text-yellow-400";
   if (score >= 40) return "text-orange-400";
   return "text-red-400";
 }
 
-function getPriorityBadge(priority: number) {
+function getPriorityBadge(priority: number | undefined) {
   const colors: Record<number, string> = {
     1: "bg-red-500/20 text-red-400 border-red-500/30",
     2: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     3: "bg-slate-500/20 text-slate-400 border-slate-500/30",
   };
-  return colors[priority] || colors[3];
+  return colors[priority ?? 3] || colors[3];
 }
 
 function formatTimeAgo(dateString: string): string {
