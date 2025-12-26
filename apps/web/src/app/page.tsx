@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, BarChart3, Users, Zap, FileText } from "lucide-react";
+import Image from "next/image";
 
 export default function Home() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -21,9 +22,8 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-lg border-b border-slate-700">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg" />
-            <span className="text-xl font-bold text-white">Glimora</span>
+          <div className="flex items-center">
+            <Image src="/logo.png" alt="Glimora" width={140} height={36} className="h-9 w-auto" />
           </div>
           <div className="flex items-center gap-4">
             <Button variant="ghost" className="text-slate-300 hover:text-white" onClick={() => router.push("/sign-in")}>
