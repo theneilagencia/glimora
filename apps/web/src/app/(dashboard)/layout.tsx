@@ -4,6 +4,7 @@ import { useAuth, UserButton } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, 
@@ -75,10 +76,9 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-slate-900">
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-lg border-b border-slate-700">
         <div className="flex items-center justify-between h-16 px-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg" />
-            <span className="text-lg font-bold text-white">Glimora</span>
-          </div>
+          <Link href="/dashboard" className="flex items-center">
+            <Image src="/logo.png" alt="Glimora" width={120} height={32} className="h-8 w-auto" />
+          </Link>
           <div className="flex items-center gap-4">
             <UserButton afterSignOutUrl="/" />
             <Button
@@ -157,10 +157,9 @@ export default function DashboardLayout({
       </AnimatePresence>
 
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block lg:w-64 lg:bg-slate-900 lg:border-r lg:border-slate-700">
-        <div className="flex h-16 items-center gap-2 px-6 border-b border-slate-700">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg" />
-          <span className="text-xl font-bold text-white">Glimora</span>
-        </div>
+        <Link href="/dashboard" className="flex h-16 items-center px-6 border-b border-slate-700">
+          <Image src="/logo.png" alt="Glimora" width={140} height={36} className="h-9 w-auto" />
+        </Link>
         <nav className="p-4 space-y-1">
           {navigation.map((item) => (
             <Link
