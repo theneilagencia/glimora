@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { 
   Plus, 
   Search, 
-  Download,
   Copy,
   Eye,
-  Sparkles
+  Sparkles,
+  Loader2,
+  Newspaper
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,61 +32,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fetchWithAuth } from "@/lib/api";
 
-const pressReleases = [
-  {
-    id: "1",
-    title: "TechCorp Brasil Anuncia Parceria Estratégica com Líder Global",
-    content: `São Paulo, 15 de Janeiro de 2024 - A TechCorp Brasil, empresa líder em soluções de tecnologia para o mercado B2B, anuncia hoje uma parceria estratégica com a Global Tech Solutions, expandindo sua presença no mercado latino-americano.
-
-"Esta parceria representa um marco importante em nossa trajetória de crescimento", afirma João Silva, CEO da TechCorp Brasil. "Juntos, poderemos oferecer soluções ainda mais completas e inovadoras para nossos clientes."
-
-A parceria inclui colaboração em desenvolvimento de produtos, compartilhamento de expertise técnica e expansão conjunta para novos mercados.
-
-Sobre a TechCorp Brasil:
-Fundada em 2015, a TechCorp Brasil é uma empresa de tecnologia focada em soluções B2B, atendendo mais de 500 clientes em todo o país.`,
-    templateType: "PARTNERSHIP",
-    status: "PUBLISHED",
-    createdAt: "2024-01-15"
-  },
-  {
-    id: "2",
-    title: "Inovação SA Lança Nova Plataforma de Inteligência Artificial",
-    content: `São Paulo, 10 de Janeiro de 2024 - A Inovação SA apresenta ao mercado sua nova plataforma de inteligência artificial, desenvolvida para transformar a forma como empresas B2B gerenciam seus processos comerciais.
-
-"Investimos dois anos de pesquisa e desenvolvimento para criar uma solução que realmente entende as necessidades do mercado brasileiro", destaca Maria Santos, CTO da Inovação SA.
-
-A plataforma oferece recursos avançados de análise preditiva, automação de processos e insights em tempo real.
-
-Principais características:
-- Análise preditiva de oportunidades
-- Automação de processos comerciais
-- Dashboard intuitivo e responsivo
-- Integração com principais CRMs do mercado`,
-    templateType: "PRODUCT_LAUNCH",
-    status: "DRAFT",
-    createdAt: "2024-01-10"
-  },
-  {
-    id: "3",
-    title: "CEO da Global Tech Compartilha Visão sobre o Futuro do Setor",
-    content: `São Paulo, 5 de Janeiro de 2024 - Em artigo exclusivo, Pedro Costa, CEO da Global Tech, compartilha sua visão sobre as principais tendências que irão moldar o setor de tecnologia nos próximos anos.
-
-"Estamos vivendo um momento de transformação sem precedentes", afirma Costa. "As empresas que souberem se adaptar e inovar serão as líderes do amanhã."
-
-Entre os principais pontos destacados pelo executivo estão:
-
-1. A consolidação da inteligência artificial como ferramenta essencial
-2. A importância crescente da experiência do cliente
-3. A necessidade de modelos de negócio mais sustentáveis
-4. O papel fundamental da cultura organizacional na inovação
-
-Costa também enfatiza a importância de investir em capacitação e desenvolvimento de talentos como diferencial competitivo.`,
-    templateType: "THOUGHT_LEADERSHIP",
-    status: "PUBLISHED",
-    createdAt: "2024-01-05"
-  },
-];
+interface PressRelease {
+  id: string;
+  title: string;
+  content?: string;
+  templateType: string;
+  status: string;
+  createdAt: string;
+}
 
 const templateTypes = {
   PRODUCT_LAUNCH: { label: "Lançamento de Produto", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
@@ -98,15 +55,81 @@ const statusColors: Record<string, string> = {
 };
 
 export default function PressPage() {
+  const { getToken } = useAuth();
+  const [pressReleases, setPressReleases] = useState<PressRelease[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [selectedPress, setSelectedPress] = useState<typeof pressReleases[0] | null>(null);
+  const [selectedPress, setSelectedPress] = useState<PressRelease | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [formData, setFormData] = useState({
+    title: "",
+    context: "",
+    keyPoints: "",
+  });
+
+  const fetchPressReleases = async () => {
+    try {
+      setLoading(true);
+      const token = await getToken();
+      if (!token) return;
+      const data = await fetchWithAuth<PressRelease[]>("/press", token);
+      setPressReleases(data);
+    } catch (error) {
+      console.error("Error fetching press releases:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPressReleases();
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!formData.title.trim() || !selectedTemplate) return;
+    
+    try {
+      setSaving(true);
+      const token = await getToken();
+      if (!token) return;
+      
+      await fetchWithAuth<PressRelease>("/press", token, {
+        method: "POST",
+        body: JSON.stringify({
+          title: formData.title,
+          templateType: selectedTemplate,
+          content: formData.context + (formData.keyPoints ? "\n\nPontos-chave:\n" + formData.keyPoints : ""),
+        }),
+      });
+      
+      setFormData({ title: "", context: "", keyPoints: "" });
+      setSelectedTemplate("");
+      setIsCreateDialogOpen(false);
+      await fetchPressReleases();
+    } catch (error) {
+      console.error("Error saving press release:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const filteredReleases = pressReleases.filter(release =>
     release.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    release.content.toLowerCase().includes(searchQuery.toLowerCase())
+    (release.content?.toLowerCase() || "").includes(searchQuery.toLowerCase())
   );
+
+  const publishedCount = pressReleases.filter(p => p.status === "PUBLISHED").length;
+  const draftCount = pressReleases.filter(p => p.status === "DRAFT").length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -128,17 +151,17 @@ export default function PressPage() {
             </DialogHeader>
             <div className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label className="text-slate-300">Template</Label>
+                <Label className="text-slate-300">Template *</Label>
                 <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
                   <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                     <SelectValue placeholder="Selecione um template" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700">
                     <SelectItem value="PRODUCT_LAUNCH" className="text-white">
-                      Lançamento de Produto
+                      Lancamento de Produto
                     </SelectItem>
                     <SelectItem value="PARTNERSHIP" className="text-white">
-                      Parceria Estratégica
+                      Parceria Estrategica
                     </SelectItem>
                     <SelectItem value="THOUGHT_LEADERSHIP" className="text-white">
                       Thought Leadership
@@ -147,14 +170,21 @@ export default function PressPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-slate-300">Título</Label>
-                <Input className="bg-slate-700 border-slate-600 text-white" placeholder="Título do press release" />
+                <Label className="text-slate-300">Titulo *</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="Titulo do press release"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-slate-300">Contexto / Sinal Base</Label>
                 <Textarea 
                   className="bg-slate-700 border-slate-600 text-white min-h-24" 
                   placeholder="Descreva o contexto ou sinal que motivou este press release..."
+                  value={formData.context}
+                  onChange={(e) => setFormData({ ...formData, context: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -162,11 +192,26 @@ export default function PressPage() {
                 <Textarea 
                   className="bg-slate-700 border-slate-600 text-white min-h-24" 
                   placeholder="- Ponto 1&#10;- Ponto 2&#10;- Ponto 3"
+                  value={formData.keyPoints}
+                  onChange={(e) => setFormData({ ...formData, keyPoints: e.target.value })}
                 />
               </div>
-              <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => setIsCreateDialogOpen(false)}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Gerar Press Release
+              <Button 
+                className="w-full bg-blue-600 hover:bg-blue-700" 
+                onClick={handleSubmit}
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Gerando...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Gerar Press Release
+                  </>
+                )}
               </Button>
             </div>
           </DialogContent>
@@ -182,17 +227,13 @@ export default function PressPage() {
         </Card>
         <Card className="bg-slate-800/50 border-slate-700">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-400">
-              {pressReleases.filter(p => p.status === "PUBLISHED").length}
-            </p>
+            <p className="text-2xl font-bold text-green-400">{publishedCount}</p>
             <p className="text-xs text-slate-400 mt-1">Publicados</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-800/50 border-slate-700">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-yellow-400">
-              {pressReleases.filter(p => p.status === "DRAFT").length}
-            </p>
+            <p className="text-2xl font-bold text-yellow-400">{draftCount}</p>
             <p className="text-xs text-slate-400 mt-1">Rascunhos</p>
           </CardContent>
         </Card>
@@ -208,59 +249,77 @@ export default function PressPage() {
         />
       </div>
 
-      <div className="space-y-4">
-        {filteredReleases.map((release, index) => (
-          <motion.div
-            key={release.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
-          >
-            <Card className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className={templateTypes[release.templateType as keyof typeof templateTypes].color}>
-                        {templateTypes[release.templateType as keyof typeof templateTypes].label}
-                      </Badge>
-                      <Badge variant="outline" className={statusColors[release.status]}>
-                        {release.status === "DRAFT" ? "Rascunho" : "Publicado"}
-                      </Badge>
+      {filteredReleases.length === 0 ? (
+        <div className="text-center py-12">
+          <Newspaper className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-white mb-2">Nenhum press release encontrado</h3>
+          <p className="text-slate-400 text-sm">
+            {searchQuery 
+              ? "Tente ajustar a busca" 
+              : "Gere seu primeiro press release clicando no botao acima"}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredReleases.map((release, index) => {
+            const templateInfo = templateTypes[release.templateType as keyof typeof templateTypes] || { label: release.templateType, color: "bg-slate-500/20 text-slate-400 border-slate-500/30" };
+            return (
+              <motion.div
+                key={release.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+              >
+                <Card className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-colors">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className={templateInfo.color}>
+                            {templateInfo.label}
+                          </Badge>
+                          <Badge variant="outline" className={statusColors[release.status] || "border-slate-500 text-slate-400"}>
+                            {release.status === "DRAFT" ? "Rascunho" : "Publicado"}
+                          </Badge>
+                        </div>
+                        <h3 className="font-semibold text-white mt-2">{release.title}</h3>
+                        {release.content && (
+                          <p className="text-sm text-slate-400 mt-1 line-clamp-2">
+                            {release.content.substring(0, 200)}...
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-500 mt-2">
+                          Criado em {new Date(release.createdAt).toLocaleDateString("pt-BR")}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-slate-700 text-slate-300"
+                          onClick={() => setSelectedPress(release)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-slate-700 text-slate-300"
+                          onClick={() => navigator.clipboard.writeText(release.content || "")}
+                        >
+                          <Copy className="h-4 w-4 mr-1" />
+                          Copiar
+                        </Button>
+                      </div>
                     </div>
-                    <h3 className="font-semibold text-white mt-2">{release.title}</h3>
-                    <p className="text-sm text-slate-400 mt-1 line-clamp-2">
-                      {release.content.substring(0, 200)}...
-                    </p>
-                    <p className="text-xs text-slate-500 mt-2">
-                      Criado em {new Date(release.createdAt).toLocaleDateString("pt-BR")}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="border-slate-700 text-slate-300"
-                      onClick={() => setSelectedPress(release)}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      Ver
-                    </Button>
-                    <Button size="sm" variant="outline" className="border-slate-700 text-slate-300">
-                      <Copy className="h-4 w-4 mr-1" />
-                      Copiar
-                    </Button>
-                    <Button size="sm" variant="outline" className="border-slate-700 text-slate-300">
-                      <Download className="h-4 w-4 mr-1" />
-                      PDF
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
 
       <Dialog open={!!selectedPress} onOpenChange={() => setSelectedPress(null)}>
         <DialogContent className="bg-slate-800 border-slate-700 max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -270,24 +329,28 @@ export default function PressPage() {
           {selectedPress && (
             <div className="space-y-4 mt-4">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className={templateTypes[selectedPress.templateType as keyof typeof templateTypes].color}>
-                  {templateTypes[selectedPress.templateType as keyof typeof templateTypes].label}
-                </Badge>
-                <Badge variant="outline" className={statusColors[selectedPress.status]}>
+                {(() => {
+                  const templateInfo = templateTypes[selectedPress.templateType as keyof typeof templateTypes] || { label: selectedPress.templateType, color: "bg-slate-500/20 text-slate-400 border-slate-500/30" };
+                  return (
+                    <Badge variant="outline" className={templateInfo.color}>
+                      {templateInfo.label}
+                    </Badge>
+                  );
+                })()}
+                <Badge variant="outline" className={statusColors[selectedPress.status] || "border-slate-500 text-slate-400"}>
                   {selectedPress.status === "DRAFT" ? "Rascunho" : "Publicado"}
                 </Badge>
               </div>
               <div className="p-4 rounded-lg bg-slate-700/50 text-slate-300 whitespace-pre-wrap text-sm">
-                {selectedPress.content}
+                {selectedPress.content || "Sem conteudo"}
               </div>
               <div className="flex gap-2">
-                <Button className="flex-1 bg-blue-600 hover:bg-blue-700">
+                <Button 
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  onClick={() => navigator.clipboard.writeText(selectedPress.content || "")}
+                >
                   <Copy className="h-4 w-4 mr-2" />
                   Copiar Texto
-                </Button>
-                <Button variant="outline" className="border-slate-700 text-slate-300">
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar PDF
                 </Button>
               </div>
             </div>

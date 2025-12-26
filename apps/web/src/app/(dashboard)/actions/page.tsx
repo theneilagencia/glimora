@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { 
   CheckSquare, 
@@ -11,7 +12,8 @@ import {
   Share2,
   Award,
   Check,
-  X
+  X,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,102 +32,30 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { fetchWithAuth } from "@/lib/api";
 
-const actions = [
-  {
-    id: "1",
-    title: "Enviar mensagem de follow-up",
-    description: "Aproveitar o post recente sobre IA para iniciar conversa",
-    type: "OUTREACH",
-    status: "PENDING",
-    priority: 1,
-    account: "TechCorp Brasil",
-    decisor: "João Silva",
-    signal: "Post sobre transformação digital",
-    suggestedMessage: "Olá João, vi seu post sobre transformação digital e achei muito interessante. Na [Empresa], temos trabalhado em soluções similares...",
-    checklist: [
-      { item: "Personalizar mensagem", completed: false },
-      { item: "Verificar perfil do decisor", completed: true },
-      { item: "Preparar material de apoio", completed: false },
-    ],
-    dueDate: "Hoje",
-    createdAt: "2h atrás"
-  },
-  {
-    id: "2",
-    title: "Agendar reunião de apresentação",
-    description: "Decisor demonstrou interesse em conhecer mais sobre a solução",
-    type: "MEETING_REQUEST",
-    status: "IN_PROGRESS",
-    priority: 1,
-    account: "Inovação SA",
-    decisor: "Maria Santos",
-    signal: "Engajamento com conteúdo",
-    suggestedMessage: "Maria, seria ótimo agendar uma conversa rápida para apresentar como podemos ajudar...",
-    checklist: [
-      { item: "Enviar convite", completed: true },
-      { item: "Preparar apresentação", completed: false },
-      { item: "Confirmar participantes", completed: false },
-    ],
-    dueDate: "Amanhã",
-    createdAt: "4h atrás"
-  },
-  {
-    id: "3",
-    title: "Compartilhar conteúdo de autoridade",
-    description: "Usar artigo do CEO para gerar valor e engajamento",
-    type: "CONTENT_SHARE",
-    status: "PENDING",
-    priority: 2,
-    account: "Global Tech",
-    decisor: "Pedro Costa",
-    signal: "Interesse em tendências de mercado",
-    suggestedMessage: "Pedro, achei que você poderia se interessar por este artigo do nosso CEO sobre...",
-    checklist: [
-      { item: "Selecionar conteúdo relevante", completed: true },
-      { item: "Personalizar introdução", completed: false },
-    ],
-    dueDate: "Em 2 dias",
-    createdAt: "1d atrás"
-  },
-  {
-    id: "4",
-    title: "Usar autoridade para abordagem",
-    description: "Mencionar participação em evento do setor para credibilidade",
-    type: "AUTHORITY_LEVERAGE",
-    status: "PENDING",
-    priority: 2,
-    account: "Startup Hub",
-    decisor: "Ana Oliveira",
-    signal: "Oportunidade de networking",
-    suggestedMessage: "Ana, após nossa participação no evento X, gostaria de compartilhar alguns insights...",
-    checklist: [
-      { item: "Preparar case de sucesso", completed: false },
-      { item: "Identificar conexões em comum", completed: true },
-    ],
-    dueDate: "Em 3 dias",
-    createdAt: "2d atrás"
-  },
-  {
-    id: "5",
-    title: "Criar press release",
-    description: "Aproveitar oportunidade editorial identificada",
-    type: "PRESS_RELEASE",
-    status: "COMPLETED",
-    priority: 3,
-    account: null,
-    decisor: null,
-    signal: "Oportunidade de press release",
-    suggestedMessage: null,
-    checklist: [
-      { item: "Definir tema", completed: true },
-      { item: "Redigir conteúdo", completed: true },
-      { item: "Revisar com marketing", completed: true },
-    ],
-    dueDate: "Concluído",
-    createdAt: "3d atrás"
-  },
-];
+interface Action {
+  id: string;
+  title: string;
+  description?: string;
+  type: string;
+  status: string;
+  priority: number;
+  suggestedMessage?: string;
+  checklist?: { item: string; completed: boolean }[];
+  dueDate?: string;
+  createdAt: string;
+  account?: {
+    name: string;
+  };
+  decisor?: {
+    firstName: string;
+    lastName: string;
+  };
+  signal?: {
+    title: string;
+  };
+}
 
 const typeIcons: Record<string, typeof CheckSquare> = {
   OUTREACH: MessageSquare,
@@ -155,19 +85,68 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   PENDING: "Pendente",
   IN_PROGRESS: "Em Progresso",
-  COMPLETED: "Concluída",
+  COMPLETED: "Concluida",
   SKIPPED: "Ignorada",
 };
 
+function formatDueDate(dateString?: string): string {
+  if (!dateString) return "Sem prazo";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) return "Atrasado";
+  if (diffDays === 0) return "Hoje";
+  if (diffDays === 1) return "Amanha";
+  return `Em ${diffDays} dias`;
+}
+
 export default function ActionsPage() {
+  const { getToken } = useAuth();
+  const [actions, setActions] = useState<Action[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedAction, setSelectedAction] = useState<typeof actions[0] | null>(null);
+  const [selectedAction, setSelectedAction] = useState<Action | null>(null);
+
+  const fetchActions = async () => {
+    try {
+      setLoading(true);
+      const token = await getToken();
+      if (!token) return;
+      const data = await fetchWithAuth<Action[]>("/actions", token);
+      setActions(data);
+    } catch (error) {
+      console.error("Error fetching actions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActions();
+  }, []);
+
+  const handleUpdateStatus = async (id: string, status: string) => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      await fetchWithAuth(`/actions/${id}/status`, token, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      await fetchActions();
+      setSelectedAction(null);
+    } catch (error) {
+      console.error("Error updating action status:", error);
+    }
+  };
 
   const filteredActions = actions.filter(action => {
     const matchesSearch = action.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      action.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (action.account?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+      (action.description?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+      (action.account?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
     const matchesStatus = statusFilter === "all" || action.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -175,6 +154,14 @@ export default function ActionsPage() {
   const pendingCount = actions.filter(a => a.status === "PENDING").length;
   const inProgressCount = actions.filter(a => a.status === "IN_PROGRESS").length;
   const completedCount = actions.filter(a => a.status === "COMPLETED").length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -230,79 +217,106 @@ export default function ActionsPage() {
         </Card>
       </div>
 
-      <div className="space-y-4">
-        {filteredActions.map((action, index) => {
-          const TypeIcon = typeIcons[action.type] || CheckSquare;
-          return (
-            <motion.div
-              key={action.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.05 }}
-            >
-              <Card 
-                className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-colors cursor-pointer"
-                onClick={() => setSelectedAction(action)}
+      {filteredActions.length === 0 ? (
+        <div className="text-center py-12">
+          <CheckSquare className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-white mb-2">Nenhuma acao encontrada</h3>
+          <p className="text-slate-400 text-sm">
+            {searchQuery || statusFilter !== "all" 
+              ? "Tente ajustar os filtros" 
+              : "As acoes aparecerao aqui quando forem geradas a partir de sinais"}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredActions.map((action, index) => {
+            const TypeIcon = typeIcons[action.type] || CheckSquare;
+            return (
+              <motion.div
+                key={action.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">
-                      {action.priority}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <TypeIcon className="h-4 w-4 text-slate-400" />
-                            <Badge variant="secondary" className="bg-slate-700 text-xs">
-                              {typeLabels[action.type]}
-                            </Badge>
-                            <Badge variant="outline" className={statusColors[action.status]}>
-                              {statusLabels[action.status]}
-                            </Badge>
-                          </div>
-                          <h3 className="font-semibold text-white mt-2">{action.title}</h3>
-                          <p className="text-sm text-slate-400 mt-1">{action.description}</p>
-                          <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
-                            {action.account && (
-                              <span className="text-blue-400">{action.account}</span>
+                <Card 
+                  className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-colors cursor-pointer"
+                  onClick={() => setSelectedAction(action)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm">
+                        {action.priority}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <TypeIcon className="h-4 w-4 text-slate-400" />
+                              <Badge variant="secondary" className="bg-slate-700 text-xs">
+                                {typeLabels[action.type] || action.type}
+                              </Badge>
+                              <Badge variant="outline" className={statusColors[action.status] || "border-slate-500 text-slate-400"}>
+                                {statusLabels[action.status] || action.status}
+                              </Badge>
+                            </div>
+                            <h3 className="font-semibold text-white mt-2">{action.title}</h3>
+                            {action.description && (
+                              <p className="text-sm text-slate-400 mt-1">{action.description}</p>
                             )}
-                            {action.decisor && (
-                              <span>• {action.decisor}</span>
-                            )}
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {action.dueDate}
-                            </span>
+                            <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+                              {action.account?.name && (
+                                <span className="text-blue-400">{action.account.name}</span>
+                              )}
+                              {action.decisor && (
+                                <span>- {action.decisor.firstName} {action.decisor.lastName}</span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatDueDate(action.dueDate)}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex gap-2">
-                          {action.status === "PENDING" && (
-                            <>
-                              <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                                Executar
+                          <div className="flex gap-2">
+                            {action.status === "PENDING" && (
+                              <>
+                                <Button 
+                                  size="sm" 
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                  onClick={(e) => { e.stopPropagation(); handleUpdateStatus(action.id, "IN_PROGRESS"); }}
+                                >
+                                  Executar
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-slate-400 hover:text-white"
+                                  onClick={(e) => { e.stopPropagation(); handleUpdateStatus(action.id, "SKIPPED"); }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {action.status === "IN_PROGRESS" && (
+                              <Button 
+                                size="sm" 
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={(e) => { e.stopPropagation(); handleUpdateStatus(action.id, "COMPLETED"); }}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Concluir
                               </Button>
-                              <Button size="sm" variant="ghost" className="text-slate-400 hover:text-white">
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                          {action.status === "IN_PROGRESS" && (
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                              <Check className="h-4 w-4 mr-1" />
-                              Concluir
-                            </Button>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          );
-        })}
-      </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
 
       <Dialog open={!!selectedAction} onOpenChange={() => setSelectedAction(null)}>
         <DialogContent className="bg-slate-800 border-slate-700 max-w-2xl">
@@ -312,10 +326,12 @@ export default function ActionsPage() {
           {selectedAction && (
             <div className="space-y-4 mt-4">
               <div>
-                <p className="text-sm text-slate-400">{selectedAction.description}</p>
-                {selectedAction.signal && (
+                {selectedAction.description && (
+                  <p className="text-sm text-slate-400">{selectedAction.description}</p>
+                )}
+                {selectedAction.signal?.title && (
                   <p className="text-xs text-blue-400 mt-2">
-                    Baseado no sinal: {selectedAction.signal}
+                    Baseado no sinal: {selectedAction.signal.title}
                   </p>
                 )}
               </div>
@@ -326,7 +342,12 @@ export default function ActionsPage() {
                   <div className="p-3 rounded-lg bg-slate-700/50 text-sm text-slate-300">
                     {selectedAction.suggestedMessage}
                   </div>
-                  <Button variant="outline" size="sm" className="border-slate-600 text-slate-300">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-slate-600 text-slate-300"
+                    onClick={() => navigator.clipboard.writeText(selectedAction.suggestedMessage || "")}
+                  >
                     Copiar Mensagem
                   </Button>
                 </div>
@@ -357,17 +378,27 @@ export default function ActionsPage() {
               <div className="flex gap-2 pt-4">
                 {selectedAction.status === "PENDING" && (
                   <>
-                    <Button className="flex-1 bg-blue-600 hover:bg-blue-700">
-                      Iniciar Ação
+                    <Button 
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                      onClick={() => handleUpdateStatus(selectedAction.id, "IN_PROGRESS")}
+                    >
+                      Iniciar Acao
                     </Button>
-                    <Button variant="outline" className="border-slate-600 text-slate-300">
+                    <Button 
+                      variant="outline" 
+                      className="border-slate-600 text-slate-300"
+                      onClick={() => handleUpdateStatus(selectedAction.id, "SKIPPED")}
+                    >
                       Ignorar
                     </Button>
                   </>
                 )}
                 {selectedAction.status === "IN_PROGRESS" && (
-                  <Button className="flex-1 bg-green-600 hover:bg-green-700">
-                    Marcar como Concluída
+                  <Button 
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    onClick={() => handleUpdateStatus(selectedAction.id, "COMPLETED")}
+                  >
+                    Marcar como Concluida
                   </Button>
                 )}
               </div>
