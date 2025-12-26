@@ -51,7 +51,7 @@ export default function Home() {
               </span>
             </h1>
             <p className="text-lg md:text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
-              Chega de automação cega. Decida com base em sinais reais, posicione sua marca como referência e transforme autoridade executiva em receita com inteligência estratégica e timing editorial. Ative a autoridade do seu CEO e conquiste visibilidade com quem realmente decide.
+              Chega de automação cega, comece a vender com inteligência. Decida com base em sinais reais, posicione sua marca como referência no setor e transforme autoridade executiva em receita, com precisão estratégica e timing editorial.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-lg px-8" onClick={() => router.push("/sign-up")}>
