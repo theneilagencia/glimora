@@ -16,8 +16,10 @@ import {
   Settings,
   CreditCard,
   Menu,
-  X
+  X,
+  LogOut
 } from "lucide-react";
+import { useClerk } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -42,9 +44,14 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { isSignedIn, isLoaded } = useAuth();
+  const { signOut } = useClerk();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleSignOut = () => {
+    signOut({ redirectUrl: "/" });
+  };
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -135,6 +142,13 @@ export default function DashboardLayout({
                       {item.name}
                     </Link>
                   ))}
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full mt-2"
+                  >
+                    <LogOut className="h-5 w-5" />
+                    Sair
+                  </button>
                 </div>
               </nav>
             </motion.aside>
@@ -180,9 +194,18 @@ export default function DashboardLayout({
               {item.name}
             </Link>
           ))}
-          <div className="mt-4 pt-4 border-t border-slate-700 flex items-center gap-3">
-            <UserButton afterSignOutUrl="/" />
-            <span className="text-sm text-slate-400">Minha Conta</span>
+          <div className="mt-4 pt-4 border-t border-slate-700">
+            <div className="flex items-center gap-3 mb-3">
+              <UserButton afterSignOutUrl="/" />
+              <span className="text-sm text-slate-400">Minha Conta</span>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full"
+            >
+              <LogOut className="h-5 w-5" />
+              Sair
+            </button>
           </div>
         </div>
       </aside>
