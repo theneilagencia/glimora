@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  EXEC
+  MANAGER
+  SELLER
+}
+
+enum SignalType {
+  LINKEDIN_POST
+  LINKEDIN_ENGAGEMENT
+  LINKEDIN_PROFILE_UPDATE
+  MEDIA_MENTION
+  PRESS_OPPORTUNITY
+  INDUSTRY_NEWS
+}
+
+enum SignalStrength {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+enum ActionType {
+  OUTREACH
+  FOLLOW_UP
+  CONTENT_SHARE
+  MEETING_REQUEST
+  PRESS_RELEASE
+  AUTHORITY_LEVERAGE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum PressTemplateType {
+  PRODUCT_LAUNCH
+  PARTNERSHIP
+  THOUGHT_LEADERSHIP
+}
+
+model Organization {
+  id                String             @id @default(cuid())
+  name              String
+  domain            String?
+  stripeCustomerId  String?            @unique
+  subscriptionId    String?
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  users             User[]
+  accounts          Account[]
+  authorityContent  AuthorityContent[]
+  pressReleases     PressRelease[]
+}
+
+model User {
+  id             String       @id @default(cuid())
+  clerkId        String       @unique
+  email          String       @unique
+  firstName      String?
+  lastName       String?
+  role           UserRole     @default(SELLER)
+  avatarUrl      String?
+  organizationId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedAccounts Account[]  @relation("AssignedAccounts")
+  actions        Action[]
+  
+  @@index([clerkId])
+  @@index([organizationId])
+}
+
+model Account {
+  id              String    @id @default(cuid())
+  name            String
+  industry        String?
+  website         String?
+  linkedinUrl     String?
+  description     String?
+  logoUrl         String?
+  employeeCount   Int?
+  revenue         String?
+  priority        Int       @default(0)
+  signalScore     Int       @default(0)
+  lastSignalAt    DateTime?
+  organizationId  String
+  assignedToId    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTo      User?        @relation("AssignedAccounts", fields: [assignedToId], references: [id])
+  decisors        Decisor[]
+  signals         Signal[]
+  actions         Action[]
+  
+  @@index([organizationId])
+  @@index([assignedToId])
+  @@index([signalScore])
+}
+
+model Decisor {
+  id              String    @id @default(cuid())
+  firstName       String
+  lastName        String
+  title           String?
+  email           String?
+  phone           String?
+  linkedinUrl     String?
+  avatarUrl       String?
+  influence       Int       @default(50)
+  engagementScore Int       @default(0)
+  lastActivityAt  DateTime?
+  notes           String?
+  accountId       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  account         Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  signals         Signal[]
+  actions         Action[]
+  
+  @@index([accountId])
+  @@index([engagementScore])
+}
+
+model Signal {
+  id            String         @id @default(cuid())
+  type          SignalType
+  strength      SignalStrength @default(MEDIUM)
+  title         String
+  content       String?
+  sourceUrl     String?
+  metadata      Json?
+  score         Int            @default(0)
+  processedAt   DateTime?
+  accountId     String?
+  decisorId     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  account       Account?       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  decisor       Decisor?       @relation(fields: [decisorId], references: [id], onDelete: Cascade)
+  actions       Action[]
+  
+  @@index([accountId])
+  @@index([decisorId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Action {
+  id              String       @id @default(cuid())
+  type            ActionType
+  status          ActionStatus @default(PENDING)
+  title           String
+  description     String?
+  suggestedMessage String?
+  checklist       Json?
+  priority        Int          @default(0)
+  dueDate         DateTime?
+  completedAt     DateTime?
+  accountId       String?
+  decisorId       String?
+  signalId        String?
+  assignedToId    String?
+  authorityContentId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  account         Account?          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  decisor         Decisor?          @relation(fields: [decisorId], references: [id], onDelete: Cascade)
+  signal          Signal?           @relation(fields: [signalId], references: [id])
+  assignedTo      User?             @relation(fields: [assignedToId], references: [id])
+  authorityContent AuthorityContent? @relation(fields: [authorityContentId], references: [id])
+  
+  @@index([accountId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([priority])
+}
+
+model AuthorityContent {
+  id              String       @id @default(cuid())
+  title           String
+  content         String
+  summary         String?
+  topics          String[]
+  sourceUrl       String?
+  publishedAt     DateTime?
+  engagementCount Int          @default(0)
+  organizationId  String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actions         Action[]
+  
+  @@index([organizationId])
+  @@index([topics])
+}
+
+model PressRelease {
+  id              String            @id @default(cuid())
+  title           String
+  content         String
+  templateType    PressTemplateType
+  status          String            @default("draft")
+  signalContext   Json?
+  organizationId  String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@index([organizationId])
+}
+
+model JobLog {
+  id          String   @id @default(cuid())
+  jobName     String
+  status      String
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  error       String?
+  metadata    Json?
+  
+  @@index([jobName])
+  @@index([startedAt])
+}
