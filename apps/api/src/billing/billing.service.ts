@@ -46,9 +46,7 @@ export class BillingService {
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeSecretKey) {
-      this.stripe = new Stripe(stripeSecretKey, {
-        apiVersion: '2024-12-18.acacia',
-      });
+      this.stripe = new Stripe(stripeSecretKey);
     }
   }
 
@@ -278,9 +276,9 @@ export class BillingService {
     return {
       status: organization.subscriptionStatus,
       trialEndsAt: organization.trialEndsAt,
-      isActive: [SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE].includes(
-        organization.subscriptionStatus,
-      ),
+      isActive:
+        organization.subscriptionStatus === SubscriptionStatus.TRIAL ||
+        organization.subscriptionStatus === SubscriptionStatus.ACTIVE,
     };
   }
 

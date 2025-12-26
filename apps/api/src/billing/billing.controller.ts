@@ -6,8 +6,8 @@ import {
   UseGuards,
   Req,
   Headers,
-  RawBodyRequest,
 } from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { BillingService } from './billing.service';
@@ -19,7 +19,8 @@ import { ClerkAuthGuard } from '../common/guards/clerk-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { UserRole, User } from '@prisma/client';
+import { UserRole } from '@prisma/client';
+import type { User } from '@prisma/client';
 
 @ApiTags('billing')
 @Controller('billing')

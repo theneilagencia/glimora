@@ -1,17 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSignalDto } from './dto/create-signal.dto';
-import { SignalType, SignalStrength } from '@prisma/client';
+import { SignalType, SignalStrength, Prisma } from '@prisma/client';
 
 @Injectable()
 export class SignalsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createSignalDto: CreateSignalDto) {
+    const { metadata, accountId, decisorId, ...rest } = createSignalDto;
     const signal = await this.prisma.signal.create({
       data: {
-        ...createSignalDto,
+        ...rest,
         processedAt: new Date(),
+        metadata: metadata as Prisma.InputJsonValue,
+        ...(accountId && { account: { connect: { id: accountId } } }),
+        ...(decisorId && { decisor: { connect: { id: decisorId } } }),
       },
       include: {
         account: true,

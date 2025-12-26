@@ -4,17 +4,19 @@ import {
   CreatePressReleaseDto,
   GeneratePressReleaseDto,
 } from './dto/create-press-release.dto';
-import { PressTemplateType } from '@prisma/client';
+import { PressTemplateType, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PressService {
   constructor(private prisma: PrismaService) {}
 
   async create(organizationId: string, createDto: CreatePressReleaseDto) {
+    const { signalContext, ...rest } = createDto;
     return this.prisma.pressRelease.create({
       data: {
-        ...createDto,
+        ...rest,
         organizationId,
+        signalContext: signalContext as Prisma.InputJsonValue,
       },
     });
   }
@@ -57,9 +59,13 @@ export class PressService {
   }
 
   async update(id: string, updateDto: Partial<CreatePressReleaseDto>) {
+    const { signalContext, ...rest } = updateDto;
     return this.prisma.pressRelease.update({
       where: { id },
-      data: updateDto,
+      data: {
+        ...rest,
+        ...(signalContext && { signalContext: signalContext as Prisma.InputJsonValue }),
+      },
     });
   }
 
@@ -115,7 +121,7 @@ export class PressService {
         content: content.body,
         templateType,
         status: 'draft',
-        signalContext,
+        signalContext: signalContext as Prisma.InputJsonValue,
         organizationId,
       },
     });

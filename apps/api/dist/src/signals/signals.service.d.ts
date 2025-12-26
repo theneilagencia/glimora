@@ -1,0 +1,278 @@
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateSignalDto } from './dto/create-signal.dto';
+import { SignalType, Prisma } from '@prisma/client';
+export declare class SignalsService {
+    private prisma;
+    constructor(prisma: PrismaService);
+    create(createSignalDto: CreateSignalDto): Promise<{
+        account: {
+            name: string;
+            id: string;
+            organizationId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            description: string | null;
+            industry: string | null;
+            website: string | null;
+            linkedinUrl: string | null;
+            logoUrl: string | null;
+            employeeCount: number | null;
+            revenue: string | null;
+            priority: number;
+            signalScore: number;
+            lastSignalAt: Date | null;
+            assignedToId: string | null;
+        } | null;
+        decisor: {
+            id: string;
+            email: string | null;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            title: string | null;
+            linkedinUrl: string | null;
+            accountId: string;
+            phone: string | null;
+            influence: number;
+            engagementScore: number;
+            lastActivityAt: Date | null;
+            notes: string | null;
+        } | null;
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: import("@prisma/client").$Enums.SignalType;
+        title: string;
+        accountId: string | null;
+        decisorId: string | null;
+        strength: import("@prisma/client").$Enums.SignalStrength;
+        content: string | null;
+        sourceUrl: string | null;
+        metadata: Prisma.JsonValue | null;
+        score: number;
+        processedAt: Date | null;
+    }>;
+    findAll(organizationId: string, options?: {
+        type?: SignalType;
+        limit?: number;
+        days?: number;
+    }): Promise<({
+        account: {
+            name: string;
+            id: string;
+            organizationId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            description: string | null;
+            industry: string | null;
+            website: string | null;
+            linkedinUrl: string | null;
+            logoUrl: string | null;
+            employeeCount: number | null;
+            revenue: string | null;
+            priority: number;
+            signalScore: number;
+            lastSignalAt: Date | null;
+            assignedToId: string | null;
+        } | null;
+        decisor: {
+            id: string;
+            email: string | null;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            title: string | null;
+            linkedinUrl: string | null;
+            accountId: string;
+            phone: string | null;
+            influence: number;
+            engagementScore: number;
+            lastActivityAt: Date | null;
+            notes: string | null;
+        } | null;
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: import("@prisma/client").$Enums.SignalType;
+        title: string;
+        accountId: string | null;
+        decisorId: string | null;
+        strength: import("@prisma/client").$Enums.SignalStrength;
+        content: string | null;
+        sourceUrl: string | null;
+        metadata: Prisma.JsonValue | null;
+        score: number;
+        processedAt: Date | null;
+    })[]>;
+    findOne(id: string): Promise<{
+        account: {
+            name: string;
+            id: string;
+            organizationId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            description: string | null;
+            industry: string | null;
+            website: string | null;
+            linkedinUrl: string | null;
+            logoUrl: string | null;
+            employeeCount: number | null;
+            revenue: string | null;
+            priority: number;
+            signalScore: number;
+            lastSignalAt: Date | null;
+            assignedToId: string | null;
+        } | null;
+        decisor: {
+            id: string;
+            email: string | null;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            title: string | null;
+            linkedinUrl: string | null;
+            accountId: string;
+            phone: string | null;
+            influence: number;
+            engagementScore: number;
+            lastActivityAt: Date | null;
+            notes: string | null;
+        } | null;
+        actions: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            type: import("@prisma/client").$Enums.ActionType;
+            description: string | null;
+            title: string;
+            priority: number;
+            assignedToId: string | null;
+            status: import("@prisma/client").$Enums.ActionStatus;
+            suggestedMessage: string | null;
+            checklist: Prisma.JsonValue | null;
+            dueDate: Date | null;
+            completedAt: Date | null;
+            accountId: string | null;
+            decisorId: string | null;
+            signalId: string | null;
+            authorityContentId: string | null;
+        }[];
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: import("@prisma/client").$Enums.SignalType;
+        title: string;
+        accountId: string | null;
+        decisorId: string | null;
+        strength: import("@prisma/client").$Enums.SignalStrength;
+        content: string | null;
+        sourceUrl: string | null;
+        metadata: Prisma.JsonValue | null;
+        score: number;
+        processedAt: Date | null;
+    }>;
+    findByAccount(accountId: string): Promise<({
+        decisor: {
+            id: string;
+            email: string | null;
+            firstName: string;
+            lastName: string;
+            avatarUrl: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            title: string | null;
+            linkedinUrl: string | null;
+            accountId: string;
+            phone: string | null;
+            influence: number;
+            engagementScore: number;
+            lastActivityAt: Date | null;
+            notes: string | null;
+        } | null;
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: import("@prisma/client").$Enums.SignalType;
+        title: string;
+        accountId: string | null;
+        decisorId: string | null;
+        strength: import("@prisma/client").$Enums.SignalStrength;
+        content: string | null;
+        sourceUrl: string | null;
+        metadata: Prisma.JsonValue | null;
+        score: number;
+        processedAt: Date | null;
+    })[]>;
+    findByDecisor(decisorId: string): Promise<({
+        account: {
+            name: string;
+            id: string;
+            organizationId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            description: string | null;
+            industry: string | null;
+            website: string | null;
+            linkedinUrl: string | null;
+            logoUrl: string | null;
+            employeeCount: number | null;
+            revenue: string | null;
+            priority: number;
+            signalScore: number;
+            lastSignalAt: Date | null;
+            assignedToId: string | null;
+        } | null;
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: import("@prisma/client").$Enums.SignalType;
+        title: string;
+        accountId: string | null;
+        decisorId: string | null;
+        strength: import("@prisma/client").$Enums.SignalStrength;
+        content: string | null;
+        sourceUrl: string | null;
+        metadata: Prisma.JsonValue | null;
+        score: number;
+        processedAt: Date | null;
+    })[]>;
+    remove(id: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: import("@prisma/client").$Enums.SignalType;
+        title: string;
+        accountId: string | null;
+        decisorId: string | null;
+        strength: import("@prisma/client").$Enums.SignalStrength;
+        content: string | null;
+        sourceUrl: string | null;
+        metadata: Prisma.JsonValue | null;
+        score: number;
+        processedAt: Date | null;
+    }>;
+    calculateScore(signal: CreateSignalDto): number;
+    private updateAccountScore;
+    private updateDecisorScore;
+    getSignalStats(organizationId: string): Promise<{
+        total: number;
+        byType: (Prisma.PickEnumerable<Prisma.SignalGroupByOutputType, "type"[]> & {
+            _count: number;
+        })[];
+        byStrength: (Prisma.PickEnumerable<Prisma.SignalGroupByOutputType, "strength"[]> & {
+            _count: number;
+        })[];
+        recentWeek: number;
+    }>;
+}
