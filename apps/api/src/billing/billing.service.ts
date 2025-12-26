@@ -56,6 +56,11 @@ export class BillingService {
     successUrl: string,
     cancelUrl: string,
   ) {
+    // Billing is temporarily disabled - purchases are handled manually
+    throw new BadRequestException(
+      'O checkout online esta temporariamente desabilitado. Entre em contato para contratar: contato@glimora.com.br',
+    );
+
     if (!this.stripe) {
       throw new BadRequestException('Stripe is not configured');
     }
@@ -104,6 +109,11 @@ export class BillingService {
   }
 
   async createPortalSession(organizationId: string, returnUrl: string) {
+    // Billing is temporarily disabled - purchases are handled manually
+    throw new BadRequestException(
+      'O portal de billing esta temporariamente desabilitado. Entre em contato: contato@glimora.com.br',
+    );
+
     if (!this.stripe) {
       throw new BadRequestException('Stripe is not configured');
     }
