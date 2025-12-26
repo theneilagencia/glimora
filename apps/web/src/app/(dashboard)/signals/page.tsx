@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { 
   Zap, 
@@ -9,7 +10,8 @@ import {
   TrendingUp,
   Linkedin,
   Newspaper,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,81 +24,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fetchWithAuth } from "@/lib/api";
 
-const signals = [
-  {
-    id: "1",
-    title: "Post sobre transformação digital e IA",
-    content: "CEO compartilhou insights sobre como a IA está transformando o setor de tecnologia...",
-    type: "LINKEDIN_POST",
-    strength: "HIGH",
-    score: 85,
-    account: "TechCorp Brasil",
-    decisor: "João Silva",
-    sourceUrl: "https://linkedin.com/posts/123",
-    createdAt: "2h atrás"
-  },
-  {
-    id: "2",
-    title: "Menção em artigo da Forbes Brasil",
-    content: "Empresa foi citada como uma das mais inovadoras do setor...",
-    type: "MEDIA_MENTION",
-    strength: "CRITICAL",
-    score: 95,
-    account: "Inovação SA",
-    decisor: null,
-    sourceUrl: "https://forbes.com.br/article/123",
-    createdAt: "4h atrás"
-  },
-  {
-    id: "3",
-    title: "Engajamento com conteúdo de autoridade",
-    content: "Decisor curtiu e comentou em post sobre tendências de mercado...",
-    type: "LINKEDIN_ENGAGEMENT",
-    strength: "MEDIUM",
-    score: 65,
-    account: "Global Tech",
-    decisor: "Pedro Costa",
-    sourceUrl: "https://linkedin.com/posts/456",
-    createdAt: "6h atrás"
-  },
-  {
-    id: "4",
-    title: "Atualização de perfil corporativo",
-    content: "Empresa atualizou descrição e adicionou novas competências...",
-    type: "LINKEDIN_PROFILE_UPDATE",
-    strength: "LOW",
-    score: 45,
-    account: "Startup Hub",
-    decisor: null,
-    sourceUrl: "https://linkedin.com/company/startuphub",
-    createdAt: "1d atrás"
-  },
-  {
-    id: "5",
-    title: "Oportunidade de press release",
-    content: "Evento do setor acontecerá próxima semana, oportunidade para posicionamento...",
-    type: "PRESS_OPPORTUNITY",
-    strength: "HIGH",
-    score: 78,
-    account: null,
-    decisor: null,
-    sourceUrl: null,
-    createdAt: "1d atrás"
-  },
-  {
-    id: "6",
-    title: "Notícia do setor sobre regulamentação",
-    content: "Nova regulamentação pode impactar empresas de tecnologia...",
-    type: "INDUSTRY_NEWS",
-    strength: "MEDIUM",
-    score: 60,
-    account: null,
-    decisor: null,
-    sourceUrl: "https://exame.com/article/789",
-    createdAt: "2d atrás"
-  },
-];
+interface Signal {
+  id: string;
+  title: string;
+  content?: string;
+  type: string;
+  strength: string;
+  score: number;
+  sourceUrl?: string;
+  createdAt: string;
+  account?: {
+    name: string;
+  };
+  decisor?: {
+    firstName: string;
+    lastName: string;
+  };
+}
 
 const strengthColors: Record<string, string> = {
   LOW: "bg-slate-500",
@@ -137,19 +83,71 @@ function getScoreColor(score: number): string {
   return "text-red-400";
 }
 
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffHours < 1) return "Agora";
+  if (diffHours < 24) return `${diffHours}h atras`;
+  if (diffDays === 1) return "1d atras";
+  return `${diffDays}d atras`;
+}
+
 export default function SignalsPage() {
+  const { getToken } = useAuth();
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [strengthFilter, setStrengthFilter] = useState<string>("all");
 
+  const fetchSignals = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const data = await fetchWithAuth<Signal[]>("/signals", token);
+      setSignals(data);
+    } catch (error) {
+      console.error("Error fetching signals:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSignals();
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchSignals();
+  };
+
   const filteredSignals = signals.filter(signal => {
     const matchesSearch = signal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      signal.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (signal.account?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+      (signal.content?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+      (signal.account?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
     const matchesType = typeFilter === "all" || signal.type === typeFilter;
     const matchesStrength = strengthFilter === "all" || signal.strength === strengthFilter;
     return matchesSearch && matchesType && matchesStrength;
   });
+
+  const criticalCount = signals.filter(s => s.strength === "CRITICAL").length;
+  const highCount = signals.filter(s => s.strength === "HIGH").length;
+  const avgScore = signals.length > 0 ? Math.round(signals.reduce((acc, s) => acc + s.score, 0) / signals.length) : 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -158,8 +156,12 @@ export default function SignalsPage() {
           <h1 className="text-2xl font-bold text-white">Sales Signal Score</h1>
           <p className="text-slate-400 text-sm mt-1">Sinais sociais e de mídia processados</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <RefreshCw className="h-4 w-4 mr-2" />
+        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleRefresh} disabled={refreshing}>
+          {refreshing ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
           Atualizar Sinais
         </Button>
       </div>
@@ -210,107 +212,115 @@ export default function SignalsPage() {
         </Card>
         <Card className="bg-slate-800/50 border-slate-700">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-red-400">
-              {signals.filter(s => s.strength === "CRITICAL").length}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">Críticos</p>
+            <p className="text-2xl font-bold text-red-400">{criticalCount}</p>
+            <p className="text-xs text-slate-400 mt-1">Criticos</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-800/50 border-slate-700">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-orange-400">
-              {signals.filter(s => s.strength === "HIGH").length}
-            </p>
+            <p className="text-2xl font-bold text-orange-400">{highCount}</p>
             <p className="text-xs text-slate-400 mt-1">Alta Prioridade</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-800/50 border-slate-700">
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-400">
-              {Math.round(signals.reduce((acc, s) => acc + s.score, 0) / signals.length)}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">Score Médio</p>
+            <p className="text-2xl font-bold text-green-400">{avgScore}</p>
+            <p className="text-xs text-slate-400 mt-1">Score Medio</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="space-y-4">
-        {filteredSignals.map((signal, index) => {
-          const TypeIcon = typeIcons[signal.type] || Zap;
-          return (
-            <motion.div
-              key={signal.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.05 }}
-            >
-              <Card className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-2 h-full min-h-16 rounded-full ${strengthColors[signal.strength]}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <TypeIcon className="h-4 w-4 text-slate-400" />
-                            <Badge variant="secondary" className="bg-slate-700 text-xs">
-                              {typeLabels[signal.type]}
-                            </Badge>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${
-                                signal.strength === "CRITICAL" ? "border-red-500 text-red-400" :
-                                signal.strength === "HIGH" ? "border-orange-500 text-orange-400" :
-                                signal.strength === "MEDIUM" ? "border-yellow-500 text-yellow-400" :
-                                "border-slate-500 text-slate-400"
-                              }`}
+      {filteredSignals.length === 0 ? (
+        <div className="text-center py-12">
+          <Zap className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-white mb-2">Nenhum sinal encontrado</h3>
+          <p className="text-slate-400 text-sm">
+            {searchQuery || typeFilter !== "all" || strengthFilter !== "all" 
+              ? "Tente ajustar os filtros" 
+              : "Os sinais aparecerao aqui quando forem coletados"}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredSignals.map((signal, index) => {
+            const TypeIcon = typeIcons[signal.type] || Zap;
+            return (
+              <motion.div
+                key={signal.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+              >
+                <Card className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-colors">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-2 h-full min-h-16 rounded-full ${strengthColors[signal.strength] || "bg-slate-500"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <TypeIcon className="h-4 w-4 text-slate-400" />
+                              <Badge variant="secondary" className="bg-slate-700 text-xs">
+                                {typeLabels[signal.type] || signal.type}
+                              </Badge>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${
+                                  signal.strength === "CRITICAL" ? "border-red-500 text-red-400" :
+                                  signal.strength === "HIGH" ? "border-orange-500 text-orange-400" :
+                                  signal.strength === "MEDIUM" ? "border-yellow-500 text-yellow-400" :
+                                  "border-slate-500 text-slate-400"
+                                }`}
+                              >
+                                {strengthLabels[signal.strength] || signal.strength}
+                              </Badge>
+                            </div>
+                            <h3 className="font-semibold text-white mt-2">{signal.title}</h3>
+                            {signal.content && (
+                              <p className="text-sm text-slate-400 mt-1 line-clamp-2">{signal.content}</p>
+                            )}
+                            <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+                              {signal.account?.name && (
+                                <span className="text-blue-400">{signal.account.name}</span>
+                              )}
+                              {signal.decisor && (
+                                <span>- {signal.decisor.firstName} {signal.decisor.lastName}</span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatTimeAgo(signal.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={`text-2xl font-bold ${getScoreColor(signal.score)}`}>
+                              {signal.score}
+                            </div>
+                            <p className="text-xs text-slate-500">score</p>
+                          </div>
+                        </div>
+                        {signal.sourceUrl && (
+                          <div className="mt-3 pt-3 border-t border-slate-700">
+                            <a
+                              href={signal.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
                             >
-                              {strengthLabels[signal.strength]}
-                            </Badge>
+                              <TrendingUp className="h-3 w-3" />
+                              Ver fonte original
+                            </a>
                           </div>
-                          <h3 className="font-semibold text-white mt-2">{signal.title}</h3>
-                          <p className="text-sm text-slate-400 mt-1 line-clamp-2">{signal.content}</p>
-                          <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
-                            {signal.account && (
-                              <span className="text-blue-400">{signal.account}</span>
-                            )}
-                            {signal.decisor && (
-                              <span>• {signal.decisor}</span>
-                            )}
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {signal.createdAt}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-2xl font-bold ${getScoreColor(signal.score)}`}>
-                            {signal.score}
-                          </div>
-                          <p className="text-xs text-slate-500">score</p>
-                        </div>
+                        )}
                       </div>
-                      {signal.sourceUrl && (
-                        <div className="mt-3 pt-3 border-t border-slate-700">
-                          <a
-                            href={signal.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                          >
-                            <TrendingUp className="h-3 w-3" />
-                            Ver fonte original
-                          </a>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          );
-        })}
-      </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
