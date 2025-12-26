@@ -66,7 +66,8 @@ const strengthColors: Record<string, string> = {
   CRITICAL: "bg-red-500",
 };
 
-function getScoreColor(score: number): string {
+function getScoreColor(score: number | undefined): string {
+  if (score === undefined) return "text-slate-400";
   if (score >= 80) return "text-green-400";
   if (score >= 60) return "text-yellow-400";
   if (score >= 40) return "text-orange-400";
