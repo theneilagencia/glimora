@@ -1,5 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { 
   Building2, 
@@ -7,44 +10,54 @@ import {
   Users,
   Zap,
   Linkedin,
-  Globe
+  Globe,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
+import { fetchWithAuth } from "@/lib/api";
 
-const account = {
-  id: "1",
-  name: "TechCorp Brasil",
-  industry: "Tecnologia",
-  website: "https://techcorp.com.br",
-  linkedinUrl: "https://linkedin.com/company/techcorp-brasil",
-  description: "Empresa líder em soluções de tecnologia para o mercado B2B brasileiro.",
-  employeeCount: 250,
-  revenue: "R$ 50M - R$ 100M",
-  signalScore: 85,
-  priority: 1,
-  lastSignalAt: "2h atrás"
-};
+interface Account {
+  id: string;
+  name: string;
+  industry: string;
+  website?: string;
+  linkedinUrl?: string;
+  description?: string;
+  employeeCount?: number;
+  revenue?: string;
+  signalScore?: number;
+  priority?: number;
+  lastSignalAt?: string;
+}
 
-const decisors = [
-  { id: "1", name: "João Silva", title: "CEO", influence: 95, engagementScore: 88 },
-  { id: "2", name: "Maria Santos", title: "CTO", influence: 85, engagementScore: 72 },
-  { id: "3", name: "Pedro Costa", title: "VP Sales", influence: 80, engagementScore: 65 },
-];
+interface Decisor {
+  id: string;
+  name: string;
+  title: string;
+  influence?: number;
+  engagementScore?: number;
+}
 
-const signals = [
-  { id: "1", title: "Post sobre transformação digital", type: "LINKEDIN_POST", strength: "HIGH", score: 85, time: "2h atrás" },
-  { id: "2", title: "Engajamento com conteúdo de IA", type: "LINKEDIN_ENGAGEMENT", strength: "MEDIUM", score: 65, time: "1d atrás" },
-  { id: "3", title: "Atualização de perfil corporativo", type: "LINKEDIN_PROFILE_UPDATE", strength: "LOW", score: 45, time: "3d atrás" },
-];
+interface Signal {
+  id: string;
+  title: string;
+  type: string;
+  strength: string;
+  score: number;
+  createdAt: string;
+}
 
-const actions = [
-  { id: "1", title: "Enviar mensagem de follow-up", status: "PENDING", priority: 1, dueDate: "Hoje" },
-  { id: "2", title: "Compartilhar artigo de autoridade", status: "PENDING", priority: 2, dueDate: "Amanhã" },
-];
+interface Action {
+  id: string;
+  title: string;
+  status: string;
+  priority: number;
+  dueDate?: string;
+}
 
 const strengthColors: Record<string, string> = {
   LOW: "bg-slate-500",
@@ -60,7 +73,79 @@ function getScoreColor(score: number): string {
   return "text-red-400";
 }
 
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 60) return `${diffMins}m atras`;
+  if (diffHours < 24) return `${diffHours}h atras`;
+  return `${diffDays}d atras`;
+}
+
 export default function AccountDetailPage() {
+  const { getToken } = useAuth();
+  const params = useParams();
+  const accountId = params.id as string;
+  
+  const [account, setAccount] = useState<Account | null>(null);
+  const [decisors, setDecisors] = useState<Decisor[]>([]);
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [actions, setActions] = useState<Action[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        
+        const [accountData, decisorsData, signalsData, actionsData] = await Promise.all([
+          fetchWithAuth<Account>(`/accounts/${accountId}`, token),
+          fetchWithAuth<Decisor[]>(`/decisors?accountId=${accountId}`, token).catch(() => []),
+          fetchWithAuth<Signal[]>(`/signals?accountId=${accountId}`, token).catch(() => []),
+          fetchWithAuth<Action[]>(`/actions?accountId=${accountId}`, token).catch(() => [])
+        ]);
+        
+        setAccount(accountData);
+        setDecisors(decisorsData);
+        setSignals(signalsData);
+        setActions(actionsData);
+      } catch (error) {
+        console.error("Error fetching account data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [accountId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  if (!account) {
+    return (
+      <div className="text-center py-12">
+        <Building2 className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-white mb-2">Conta nao encontrada</h3>
+        <Link href="/accounts">
+          <Button variant="outline" className="border-slate-700 text-slate-300">
+            Voltar para Contas
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -238,7 +323,7 @@ export default function AccountDetailPage() {
                             Score: {signal.score}
                           </Badge>
                           <span>{signal.type.replace(/_/g, " ")}</span>
-                          <span>{signal.time}</span>
+                          <span>{formatTimeAgo(signal.createdAt)}</span>
                         </div>
                       </div>
                     </div>
