@@ -12,13 +12,13 @@ export class BillingService {
   readonly PLANS = {
     starter: {
       name: 'Starter',
-      priceId: 'price_starter_monthly',
+      priceId: 'price_1Sif43GwHsvLMl1qbOxHgDdo',
       price: 49,
       features: ['Up to 10 accounts', 'Basic signals', 'Email support'],
     },
     professional: {
       name: 'Professional',
-      priceId: 'price_professional_monthly',
+      priceId: 'price_1Sif4KGwHsvLMl1qjDHNHHMZ',
       price: 149,
       features: [
         'Up to 50 accounts',
@@ -29,7 +29,7 @@ export class BillingService {
     },
     enterprise: {
       name: 'Enterprise',
-      priceId: 'price_enterprise_monthly',
+      priceId: 'price_1Sif4cGwHsvLMl1qKjpfVhXE',
       price: 399,
       features: [
         'Unlimited accounts',
