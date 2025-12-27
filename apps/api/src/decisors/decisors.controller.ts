@@ -17,11 +17,12 @@ import {
 } from '@nestjs/swagger';
 import { DecisorsService } from './decisors.service';
 import { CreateDecisorDto } from './dto/create-decisor.dto';
+import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
 import { ClerkAuthGuard } from '../common/guards/clerk-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { UserRole } from '@prisma/client';
+import { UserRole, DecisorLabel } from '@prisma/client';
 import type { User } from '@prisma/client';
 
 @ApiTags('decisors')
@@ -94,5 +95,42 @@ export class DecisorsController {
   @ApiOperation({ summary: 'Delete decisor' })
   remove(@Param('id') id: string) {
     return this.decisorsService.remove(id);
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Get decisor statistics for organization' })
+  getStats(@CurrentUser() user: User) {
+    return this.decisorsService.getDecisorStats(user.organizationId);
+  }
+
+  @Get('by-label/:label')
+  @ApiOperation({ summary: 'Get decisors by label' })
+  getByLabel(@CurrentUser() user: User, @Param('label') label: DecisorLabel) {
+    return this.decisorsService.getDecisorsByLabel(user.organizationId, label);
+  }
+
+  @Get('top-by-score')
+  @ApiOperation({ summary: 'Get top decisors by decisor score' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  getTopByScore(@CurrentUser() user: User, @Query('limit') limit?: string) {
+    return this.decisorsService.getTopDecisorsByScore(
+      user.organizationId,
+      limit ? parseInt(limit, 10) : 10,
+    );
+  }
+
+  @Post(':id/feedback')
+  @ApiOperation({ summary: 'Submit seller feedback for decisor' })
+  submitFeedback(
+    @Param('id') id: string,
+    @Body() feedbackDto: SubmitFeedbackDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.decisorsService.submitFeedback(
+      id,
+      feedbackDto.feedback,
+      feedbackDto.notes,
+      user.id,
+    );
   }
 }

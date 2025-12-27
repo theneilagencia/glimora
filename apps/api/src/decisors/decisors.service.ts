@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDecisorDto } from './dto/create-decisor.dto';
+import { DecisorFeedback, DecisorLabel } from '@prisma/client';
 
 @Injectable()
 export class DecisorsService {
@@ -139,5 +140,120 @@ export class DecisorsService {
         },
       },
     });
+  }
+
+  async submitFeedback(
+    id: string,
+    feedback: DecisorFeedback,
+    notes: string | undefined,
+    userId: string,
+  ) {
+    const decisor = await this.prisma.decisor.findUnique({
+      where: { id },
+    });
+
+    if (!decisor) {
+      throw new NotFoundException(`Decisor with ID ${id} not found`);
+    }
+
+    let newLabel: DecisorLabel | undefined;
+    let newScore: number | undefined;
+
+    if (feedback === DecisorFeedback.CONFIRMED_DECISOR) {
+      newLabel = DecisorLabel.DECISOR_PROVAVEL;
+      newScore = Math.max(decisor.decisorScore, 85);
+    } else if (feedback === DecisorFeedback.NOT_DECISOR) {
+      newLabel = DecisorLabel.CONTATO_IRRELEVANTE;
+      newScore = Math.min(decisor.decisorScore, 30);
+    }
+
+    return this.prisma.decisor.update({
+      where: { id },
+      data: {
+        sellerFeedback: feedback,
+        feedbackNotes: notes,
+        feedbackAt: new Date(),
+        feedbackByUserId: userId,
+        ...(newLabel && { decisorLabel: newLabel }),
+        ...(newScore !== undefined && { decisorScore: newScore }),
+      },
+      include: {
+        account: true,
+      },
+    });
+  }
+
+  async getDecisorsByLabel(organizationId: string, label: DecisorLabel) {
+    return this.prisma.decisor.findMany({
+      where: {
+        account: { organizationId },
+        decisorLabel: label,
+      },
+      orderBy: { decisorScore: 'desc' },
+      include: {
+        account: true,
+        _count: {
+          select: {
+            signals: true,
+            actions: true,
+          },
+        },
+      },
+    });
+  }
+
+  async getTopDecisorsByScore(organizationId: string, limit: number = 10) {
+    return this.prisma.decisor.findMany({
+      where: {
+        account: { organizationId },
+        decisorLabel: {
+          in: [
+            DecisorLabel.DECISOR_PROVAVEL,
+            DecisorLabel.INFLUENCIADOR_POTENCIAL,
+          ],
+        },
+      },
+      orderBy: { decisorScore: 'desc' },
+      take: limit,
+      include: {
+        account: true,
+        _count: {
+          select: {
+            signals: true,
+            actions: true,
+          },
+        },
+      },
+    });
+  }
+
+  async getDecisorStats(organizationId: string) {
+    const [total, byLabel, avgScore, withFeedback] = await Promise.all([
+      this.prisma.decisor.count({
+        where: { account: { organizationId } },
+      }),
+      this.prisma.decisor.groupBy({
+        by: ['decisorLabel'],
+        where: { account: { organizationId } },
+        _count: true,
+      }),
+      this.prisma.decisor.aggregate({
+        where: { account: { organizationId } },
+        _avg: { decisorScore: true },
+      }),
+      this.prisma.decisor.count({
+        where: {
+          account: { organizationId },
+          sellerFeedback: { not: null },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      byLabel,
+      averageScore: avgScore._avg.decisorScore || 0,
+      withFeedback,
+    };
   }
 }

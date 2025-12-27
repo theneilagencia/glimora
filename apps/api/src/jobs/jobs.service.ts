@@ -9,6 +9,7 @@ export class JobsService {
 
   constructor(
     @InjectQueue('signal-collection') private signalQueue: Queue,
+    @InjectQueue('decisor-detection') private decisorQueue: Queue,
     private prisma: PrismaService,
   ) {}
 
@@ -104,11 +105,68 @@ export class JobsService {
       this.signalQueue.getFailedCount(),
     ]);
 
+    const [decisorWaiting, decisorActive, decisorCompleted, decisorFailed] =
+      await Promise.all([
+        this.decisorQueue.getWaitingCount(),
+        this.decisorQueue.getActiveCount(),
+        this.decisorQueue.getCompletedCount(),
+        this.decisorQueue.getFailedCount(),
+      ]);
+
     return {
-      waiting,
-      active,
-      completed,
-      failed,
+      signalCollection: {
+        waiting,
+        active,
+        completed,
+        failed,
+      },
+      decisorDetection: {
+        waiting: decisorWaiting,
+        active: decisorActive,
+        completed: decisorCompleted,
+        failed: decisorFailed,
+      },
     };
+  }
+
+  async scheduleDecisorDetection(organizationId: string, accountId?: string) {
+    const job = await this.decisorQueue.add(
+      'detect-decisors',
+      { organizationId, accountId },
+      {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      },
+    );
+
+    this.logger.log(
+      `Scheduled decisor detection job ${job.id} for organization ${organizationId}`,
+    );
+    return { jobId: job.id, status: 'scheduled' };
+  }
+
+  async scheduleWeeklyDecisorDetection(organizationId: string) {
+    const job = await this.decisorQueue.add(
+      'weekly-decisor-detection',
+      { organizationId },
+      {
+        repeat: {
+          pattern: '0 0 * * 1',
+        },
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      },
+    );
+
+    this.logger.log(
+      `Scheduled weekly decisor detection job ${job.id} for organization ${organizationId}`,
+    );
+    return { jobId: job.id, status: 'scheduled', schedule: 'weekly' };
   }
 }

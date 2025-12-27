@@ -71,4 +71,24 @@ export class JobsController {
   getQueueStatus() {
     return this.jobsService.getQueueStatus();
   }
+
+  @Post('detect-decisors')
+  @Roles(UserRole.EXEC, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Trigger decisor detection job for an account' })
+  scheduleDecisorDetection(
+    @CurrentUser() user: User,
+    @Body('accountId') accountId?: string,
+  ) {
+    return this.jobsService.scheduleDecisorDetection(
+      user.organizationId,
+      accountId,
+    );
+  }
+
+  @Post('schedule-weekly-decisor-detection')
+  @Roles(UserRole.EXEC)
+  @ApiOperation({ summary: 'Schedule weekly decisor detection' })
+  scheduleWeeklyDecisorDetection(@CurrentUser() user: User) {
+    return this.jobsService.scheduleWeeklyDecisorDetection(user.organizationId);
+  }
 }
