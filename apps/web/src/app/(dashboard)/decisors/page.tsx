@@ -15,7 +15,8 @@ import {
   Users,
   MapPin,
   Clock,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -235,6 +236,37 @@ export default function DecisorsPage() {
     }
   };
 
+  const handleCleanupMockData = async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+      setSuccessMessage(null);
+      const token = await getToken();
+      if (!token) {
+        setError("Nao autenticado");
+        return;
+      }
+      
+      const response = await fetchWithAuth("/decisors/admin/cleanup-mock", token, {
+        method: "DELETE",
+      });
+      
+      const data = await response.json();
+      setSuccessMessage(`${data.deleted} decisores mockados removidos com sucesso!`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+      
+      // Refresh the list
+      await fetchDecisors();
+    } catch (err) {
+      setError("Erro ao limpar dados mockados. Verifique se voce tem permissao de EXEC.");
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const filteredDecisors = decisors.filter(decisor =>
     `${decisor.firstName} ${decisor.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (decisor.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
@@ -257,6 +289,24 @@ export default function DecisorsPage() {
           <p className="text-slate-400 text-sm mt-1">Decisores priorizados por engajamento</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="border-red-700 text-red-400 hover:bg-red-900/30 hover:text-red-300"
+            onClick={handleCleanupMockData}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Limpando...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Limpar Dados Mock
+              </>
+            )}
+          </Button>
           <Button 
             variant="outline" 
             className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
