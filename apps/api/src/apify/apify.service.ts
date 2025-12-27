@@ -34,16 +34,22 @@ interface ApifyDatasetItem {
   fullName?: string;
   firstName?: string;
   lastName?: string;
+  name?: string;
   title?: string;
+  headline?: string;
   profileUrl?: string;
   linkedinUrl?: string;
+  url?: string;
   profilePicture?: string;
   avatarUrl?: string;
+  photo?: string;
   location?: string;
   connectionDegree?: string;
   sharedConnections?: number;
   about?: string;
+  summary?: string;
   currentCompany?: string;
+  company?: string;
   tenureAtCompany?: string;
   totalExperience?: string;
 }
@@ -70,8 +76,13 @@ export class ApifyService {
     }
 
     try {
-      const actorId = 'curious_coder/linkedin-company-employees-scraper';
+      // Using harvestapi/linkedin-company-employees actor (no cookies required)
+      const actorId = 'harvestapi/linkedin-company-employees';
       const runUrl = `${this.baseUrl}/acts/${actorId}/runs?token=${this.apiToken}`;
+
+      this.logger.log(
+        `Starting Apify scrape for company: ${companyLinkedInUrl}`,
+      );
 
       const response = await fetch(runUrl, {
         method: 'POST',
@@ -79,11 +90,10 @@ export class ApifyService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          startUrls: [{ url: companyLinkedInUrl }],
+          companies: [companyLinkedInUrl],
           maxItems: limit,
-          proxy: {
-            useApifyProxy: true,
-          },
+          profileScraperMode: 'Short ($4 per 1k)',
+          companyBatchMode: 'one_by_one',
         }),
       });
 
@@ -141,23 +151,30 @@ export class ApifyService {
     const response = await fetch(datasetUrl);
     const data = (await response.json()) as ApifyDatasetItem[];
 
-    return data.map((item: ApifyDatasetItem) => ({
-      fullName:
+    this.logger.log(`Apify run ${runId} returned ${data.length} results`);
+
+    return data.map((item: ApifyDatasetItem) => {
+      const fullName =
         item.fullName ||
-        `${item.firstName || ''} ${item.lastName || ''}`.trim(),
-      firstName: item.firstName,
-      lastName: item.lastName,
-      title: item.title,
-      profileUrl: item.profileUrl || item.linkedinUrl,
-      avatarUrl: item.profilePicture || item.avatarUrl,
-      location: item.location,
-      connectionDegree: item.connectionDegree,
-      sharedConnections: item.sharedConnections,
-      about: item.about,
-      currentCompany: item.currentCompany,
-      tenureAtCompany: item.tenureAtCompany,
-      totalExperience: item.totalExperience,
-    }));
+        item.name ||
+        `${item.firstName || ''} ${item.lastName || ''}`.trim();
+
+      return {
+        fullName,
+        firstName: item.firstName || fullName.split(' ')[0],
+        lastName: item.lastName || fullName.split(' ').slice(1).join(' '),
+        title: item.title || item.headline,
+        profileUrl: item.profileUrl || item.linkedinUrl || item.url,
+        avatarUrl: item.profilePicture || item.avatarUrl || item.photo,
+        location: item.location,
+        connectionDegree: item.connectionDegree,
+        sharedConnections: item.sharedConnections,
+        about: item.about || item.summary,
+        currentCompany: item.currentCompany || item.company,
+        tenureAtCompany: item.tenureAtCompany,
+        totalExperience: item.totalExperience,
+      };
+    });
   }
 
   async getRunStatus(runId: string): Promise<ApifyRunResult> {
