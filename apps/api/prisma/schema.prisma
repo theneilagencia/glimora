@@ -59,6 +59,18 @@ enum PressTemplateType {
   THOUGHT_LEADERSHIP
 }
 
+enum DecisorLabel {
+  DECISOR_PROVAVEL      // 80-100 score
+  INFLUENCIADOR_POTENCIAL // 60-79 score
+  CONTATO_IRRELEVANTE   // 0-59 score
+}
+
+enum DecisorFeedback {
+  CONFIRMED_DECISOR
+  NOT_DECISOR
+  NEEDS_REVIEW
+}
+
 model Organization {
   id                String             @id @default(cuid())
   name              String
@@ -142,12 +154,33 @@ model Decisor {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   
+  // Decisor Engine fields
+  decisorScore    Int       @default(0)
+  decisorLabel    DecisorLabel @default(CONTATO_IRRELEVANTE)
+  department      String?
+  tenureMonths    Int?
+  location        String?
+  lastPublicActivity DateTime?
+  interactedWithCeo Boolean @default(false)
+  interactedWithBrand Boolean @default(false)
+  profileComplete Boolean @default(false)
+  scrapedAt       DateTime?
+  apifyJobId      String?
+  
+  // Feedback system
+  sellerFeedback  DecisorFeedback?
+  feedbackNotes   String?
+  feedbackAt      DateTime?
+  feedbackByUserId String?
+  
   account         Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   signals         Signal[]
   actions         Action[]
   
   @@index([accountId])
   @@index([engagementScore])
+  @@index([decisorScore])
+  @@index([decisorLabel])
 }
 
 model Signal {

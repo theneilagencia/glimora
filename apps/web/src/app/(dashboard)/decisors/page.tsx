@@ -12,7 +12,9 @@ import {
   Mail,
   Phone,
   Loader2,
-  Users
+  Users,
+  MapPin,
+  Clock
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,7 +45,14 @@ interface Decisor {
   linkedinUrl?: string;
   influence: number;
   engagementScore: number;
+  decisorScore: number;
+  decisorLabel: 'DECISOR_PROVAVEL' | 'INFLUENCIADOR_POTENCIAL' | 'CONTATO_IRRELEVANTE';
+  department?: string;
+  tenureMonths?: number;
+  location?: string;
+  sellerFeedback?: 'CONFIRMED_DECISOR' | 'NOT_DECISOR' | 'NEEDS_REVIEW';
   lastActivityAt?: string;
+  scrapedAt?: string;
   account?: {
     name: string;
   };
@@ -78,6 +87,27 @@ function formatTimeAgo(dateString?: string): string {
   if (diffHours < 24) return `${diffHours}h atras`;
   if (diffDays === 1) return "1d atras";
   return `${diffDays}d atras`;
+}
+
+function getLabelDisplay(label: string): { text: string; color: string; bgColor: string } {
+  switch (label) {
+    case 'DECISOR_PROVAVEL':
+      return { text: 'Decisor Provavel', color: 'text-green-400', bgColor: 'bg-green-500/20' };
+    case 'INFLUENCIADOR_POTENCIAL':
+      return { text: 'Influenciador', color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' };
+    case 'CONTATO_IRRELEVANTE':
+    default:
+      return { text: 'Contato', color: 'text-slate-400', bgColor: 'bg-slate-500/20' };
+  }
+}
+
+function formatTenure(months?: number): string {
+  if (!months) return "";
+  if (months < 12) return `${months} meses`;
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+  if (remainingMonths === 0) return `${years} ano${years > 1 ? 's' : ''}`;
+  return `${years}a ${remainingMonths}m`;
 }
 
 export default function DecisorsPage() {
@@ -310,95 +340,136 @@ export default function DecisorsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
             >
-              <Card className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
-                        {decisor.firstName.charAt(0)}{decisor.lastName.charAt(0)}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-white">
-                          {decisor.firstName} {decisor.lastName}
-                        </h3>
-                        <p className="text-xs text-slate-400">{decisor.title || "Sem cargo"}</p>
-                        <p className="text-xs text-blue-400">{decisor.account?.name || "Sem conta"}</p>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="bg-slate-800 border-slate-700">
-                        <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
-                          Ver Sinais
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
-                          Criar Acao
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-red-400 hover:text-red-300 focus:text-red-300 focus:bg-slate-700"
-                          onClick={() => handleDelete(decisor.id)}
-                        >
-                          Remover
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                            <Card className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-colors">
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                                        {decisor.firstName.charAt(0)}{decisor.lastName.charAt(0)}
+                                      </div>
+                                      <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${getScoreBgColor(decisor.decisorScore || 0)} flex items-center justify-center`}>
+                                        <span className={`text-xs font-bold ${getScoreColor(decisor.decisorScore || 0)}`}>
+                                          {decisor.decisorScore || 0}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <h3 className="font-semibold text-white">
+                                        {decisor.firstName} {decisor.lastName}
+                                      </h3>
+                                      <p className="text-xs text-slate-400">{decisor.title || "Sem cargo"}</p>
+                                      <p className="text-xs text-blue-400">{decisor.account?.name || "Sem conta"}</p>
+                                    </div>
+                                  </div>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white">
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="bg-slate-800 border-slate-700">
+                                      <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
+                                        Editar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
+                                        Ver Sinais
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
+                                        Criar Acao
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem 
+                                        className="text-red-400 hover:text-red-300 focus:text-red-300 focus:bg-slate-700"
+                                        onClick={() => handleDelete(decisor.id)}
+                                      >
+                                        Remover
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className={`p-2 rounded-lg ${getScoreBgColor(decisor.influence || 0)}`}>
-                      <p className="text-xs text-slate-400">Influencia</p>
-                      <p className={`text-lg font-bold ${getScoreColor(decisor.influence || 0)}`}>
-                        {decisor.influence || 0}
-                      </p>
-                    </div>
-                    <div className={`p-2 rounded-lg ${getScoreBgColor(decisor.engagementScore || 0)}`}>
-                      <p className="text-xs text-slate-400">Engajamento</p>
-                      <p className={`text-lg font-bold ${getScoreColor(decisor.engagementScore || 0)}`}>
-                        {decisor.engagementScore || 0}
-                      </p>
-                    </div>
-                  </div>
+                                <div className="mt-3 flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getLabelDisplay(decisor.decisorLabel || 'CONTATO_IRRELEVANTE').bgColor} ${getLabelDisplay(decisor.decisorLabel || 'CONTATO_IRRELEVANTE').color}`}>
+                                    {getLabelDisplay(decisor.decisorLabel || 'CONTATO_IRRELEVANTE').text}
+                                  </span>
+                                  {decisor.sellerFeedback && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400">
+                                      {decisor.sellerFeedback === 'CONFIRMED_DECISOR' ? 'Confirmado' : decisor.sellerFeedback === 'NOT_DECISOR' ? 'Nao decisor' : 'Revisar'}
+                                    </span>
+                                  )}
+                                </div>
 
-                  <div className="mt-4 pt-4 border-t border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {decisor.linkedinUrl && (
-                        <a
-                          href={decisor.linkedinUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded-lg bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
-                        >
-                          <Linkedin className="h-4 w-4" />
-                        </a>
-                      )}
-                      {decisor.email && (
-                        <a
-                          href={`mailto:${decisor.email}`}
-                          className="p-1.5 rounded-lg bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
-                        >
-                          <Mail className="h-4 w-4" />
-                        </a>
-                      )}
-                      {decisor.phone && (
-                        <a
-                          href={`tel:${decisor.phone}`}
-                          className="p-1.5 rounded-lg bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
-                        >
-                          <Phone className="h-4 w-4" />
-                        </a>
-                      )}
-                    </div>
-                    <span className="text-xs text-slate-500">{formatTimeAgo(decisor.lastActivityAt)}</span>
-                  </div>
-                </CardContent>
-              </Card>
+                                {(decisor.location || decisor.tenureMonths) && (
+                                  <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
+                                    {decisor.location && (
+                                      <span className="flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        {decisor.location}
+                                      </span>
+                                    )}
+                                    {decisor.tenureMonths && (
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        {formatTenure(decisor.tenureMonths)}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="mt-4 grid grid-cols-3 gap-2">
+                                  <div className={`p-2 rounded-lg ${getScoreBgColor(decisor.decisorScore || 0)}`}>
+                                    <p className="text-xs text-slate-400">Score</p>
+                                    <p className={`text-lg font-bold ${getScoreColor(decisor.decisorScore || 0)}`}>
+                                      {decisor.decisorScore || 0}
+                                    </p>
+                                  </div>
+                                  <div className={`p-2 rounded-lg ${getScoreBgColor(decisor.influence || 0)}`}>
+                                    <p className="text-xs text-slate-400">Influencia</p>
+                                    <p className={`text-lg font-bold ${getScoreColor(decisor.influence || 0)}`}>
+                                      {decisor.influence || 0}
+                                    </p>
+                                  </div>
+                                  <div className={`p-2 rounded-lg ${getScoreBgColor(decisor.engagementScore || 0)}`}>
+                                    <p className="text-xs text-slate-400">Engajamento</p>
+                                    <p className={`text-lg font-bold ${getScoreColor(decisor.engagementScore || 0)}`}>
+                                      {decisor.engagementScore || 0}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t border-slate-700 flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    {decisor.linkedinUrl && (
+                                      <a
+                                        href={decisor.linkedinUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-1.5 rounded-lg bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
+                                      >
+                                        <Linkedin className="h-4 w-4" />
+                                      </a>
+                                    )}
+                                    {decisor.email && (
+                                      <a
+                                        href={`mailto:${decisor.email}`}
+                                        className="p-1.5 rounded-lg bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
+                                      >
+                                        <Mail className="h-4 w-4" />
+                                      </a>
+                                    )}
+                                    {decisor.phone && (
+                                      <a
+                                        href={`tel:${decisor.phone}`}
+                                        className="p-1.5 rounded-lg bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
+                                      >
+                                        <Phone className="h-4 w-4" />
+                                      </a>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-slate-500">{formatTimeAgo(decisor.lastActivityAt)}</span>
+                                </div>
+                              </CardContent>
+                            </Card>
             </motion.div>
           ))}
         </div>
