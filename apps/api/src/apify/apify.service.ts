@@ -76,8 +76,9 @@ export class ApifyService {
     }
 
     try {
-      // Using harvestapi/linkedin-company-employees actor (no cookies required)
-      const actorId = 'harvestapi/linkedin-company-employees';
+      // Using harvestapi~linkedin-company-employees actor (no cookies required)
+      // Note: Apify API requires tilde (~) not slash (/) in actor identifier
+      const actorId = 'harvestapi~linkedin-company-employees';
       const runUrl = `${this.baseUrl}/acts/${actorId}/runs?token=${this.apiToken}`;
 
       this.logger.log(
