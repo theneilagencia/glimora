@@ -16,6 +16,15 @@ import { PressModule } from './press/press.module';
 import { JobsModule } from './jobs/jobs.module';
 import { BillingModule } from './billing/billing.module';
 
+// Redis connection configuration with Upstash TLS support
+const redisHost = process.env.REDIS_HOST || 'localhost';
+const redisPort = parseInt(process.env.REDIS_PORT || '6379', 10);
+const redisPassword = process.env.REDIS_PASSWORD;
+
+// Enable TLS for Upstash or when explicitly configured
+const useTls =
+  process.env.REDIS_TLS === 'true' || redisHost.includes('upstash.io');
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -23,9 +32,11 @@ import { BillingModule } from './billing/billing.module';
     }),
     BullModule.forRoot({
       connection: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        password: process.env.REDIS_PASSWORD,
+        host: redisHost,
+        port: redisPort,
+        password: redisPassword,
+        ...(useTls ? { tls: {} } : {}),
+        maxRetriesPerRequest: null,
       },
     }),
     PrismaModule,
