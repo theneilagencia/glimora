@@ -43,7 +43,7 @@ interface ApifyDatasetItem {
   profilePicture?: string;
   avatarUrl?: string;
   photo?: string;
-  location?: string;
+  location?: string | { linkedinText?: string };
   connectionDegree?: string;
   sharedConnections?: number;
   about?: string;
@@ -160,6 +160,14 @@ export class ApifyService {
         item.name ||
         `${item.firstName || ''} ${item.lastName || ''}`.trim();
 
+      // Handle location field - can be string or object with linkedinText
+      let locationStr: string | undefined;
+      if (typeof item.location === 'string') {
+        locationStr = item.location;
+      } else if (item.location && typeof item.location === 'object') {
+        locationStr = item.location.linkedinText;
+      }
+
       return {
         fullName,
         firstName: item.firstName || fullName.split(' ')[0],
@@ -167,7 +175,7 @@ export class ApifyService {
         title: item.title || item.headline,
         profileUrl: item.profileUrl || item.linkedinUrl || item.url,
         avatarUrl: item.profilePicture || item.avatarUrl || item.photo,
-        location: item.location,
+        location: locationStr,
         connectionDegree: item.connectionDegree,
         sharedConnections: item.sharedConnections,
         about: item.about || item.summary,
