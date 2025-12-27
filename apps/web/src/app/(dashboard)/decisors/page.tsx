@@ -14,7 +14,8 @@ import {
   Loader2,
   Users,
   MapPin,
-  Clock
+  Clock,
+  RefreshCw
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -115,7 +116,9 @@ export default function DecisorsPage() {
   const [decisors, setDecisors] = useState<Decisor[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -202,6 +205,36 @@ export default function DecisorsPage() {
     }
   };
 
+  const handleRefreshDecisors = async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+      setSuccessMessage(null);
+      const token = await getToken();
+      if (!token) {
+        setError("Nao autenticado");
+        return;
+      }
+      
+      await fetchWithAuth("/jobs/detect-decisors", token, {
+        method: "POST",
+      });
+      
+      setSuccessMessage("Deteccao de decisores iniciada! Os resultados aparecerao em alguns minutos.");
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+      
+      // Refresh the list after a short delay
+      setTimeout(() => fetchDecisors(), 3000);
+    } catch (err) {
+      setError("Erro ao iniciar deteccao de decisores. Verifique se voce tem permissao.");
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const filteredDecisors = decisors.filter(decisor =>
     `${decisor.firstName} ${decisor.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (decisor.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
@@ -223,13 +256,32 @@ export default function DecisorsPage() {
           <h1 className="text-2xl font-bold text-white">Deal Intelligence</h1>
           <p className="text-slate-400 text-sm mt-1">Decisores priorizados por engajamento</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Decisor
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+            onClick={handleRefreshDecisors}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Atualizando...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Atualizar Decisores
+              </>
+            )}
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Decisor
+              </Button>
+            </DialogTrigger>
           <DialogContent className="bg-slate-800 border-slate-700">
             <DialogHeader>
               <DialogTitle className="text-white">Adicionar Novo Decisor</DialogTitle>
@@ -299,7 +351,14 @@ export default function DecisorsPage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      {successMessage && (
+        <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4 text-green-400">
+          {successMessage}
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 text-red-400">
