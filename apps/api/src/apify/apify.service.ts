@@ -63,8 +63,10 @@ export class ApifyService {
     limit: number = 50,
   ): Promise<LinkedInEmployee[]> {
     if (!this.apiToken) {
-      this.logger.warn('APIFY_API_TOKEN not configured, using mock data');
-      return this.getMockEmployees();
+      this.logger.error(
+        'APIFY_API_TOKEN not configured - cannot scrape employees',
+      );
+      return [];
     }
 
     try {
@@ -102,7 +104,7 @@ export class ApifyService {
       return results;
     } catch (error) {
       this.logger.error(`Error scraping company employees: ${error}`);
-      return this.getMockEmployees();
+      return [];
     }
   }
 
@@ -158,59 +160,9 @@ export class ApifyService {
     }));
   }
 
-  private getMockEmployees(): LinkedInEmployee[] {
-    return [
-      {
-        fullName: 'Carlos Silva',
-        firstName: 'Carlos',
-        lastName: 'Silva',
-        title: 'CEO & Founder',
-        profileUrl: 'https://linkedin.com/in/carlos-silva',
-        location: 'Sao Paulo, Brazil',
-        tenureAtCompany: '5 years',
-      },
-      {
-        fullName: 'Maria Santos',
-        firstName: 'Maria',
-        lastName: 'Santos',
-        title: 'Diretora de Vendas',
-        profileUrl: 'https://linkedin.com/in/maria-santos',
-        location: 'Sao Paulo, Brazil',
-        tenureAtCompany: '3 years',
-      },
-      {
-        fullName: 'Pedro Oliveira',
-        firstName: 'Pedro',
-        lastName: 'Oliveira',
-        title: 'Head de Marketing',
-        profileUrl: 'https://linkedin.com/in/pedro-oliveira',
-        location: 'Rio de Janeiro, Brazil',
-        tenureAtCompany: '2 years',
-      },
-      {
-        fullName: 'Ana Costa',
-        firstName: 'Ana',
-        lastName: 'Costa',
-        title: 'Gerente de Compras',
-        profileUrl: 'https://linkedin.com/in/ana-costa',
-        location: 'Sao Paulo, Brazil',
-        tenureAtCompany: '4 years',
-      },
-      {
-        fullName: 'Lucas Ferreira',
-        firstName: 'Lucas',
-        lastName: 'Ferreira',
-        title: 'Analista de Vendas',
-        profileUrl: 'https://linkedin.com/in/lucas-ferreira',
-        location: 'Belo Horizonte, Brazil',
-        tenureAtCompany: '1 year',
-      },
-    ];
-  }
-
   async getRunStatus(runId: string): Promise<ApifyRunResult> {
     if (!this.apiToken) {
-      return { id: runId, status: 'MOCK' };
+      return { id: runId, status: 'NO_TOKEN' };
     }
 
     const statusUrl = `${this.baseUrl}/actor-runs/${runId}?token=${this.apiToken}`;
