@@ -247,11 +247,10 @@ export default function DecisorsPage() {
         return;
       }
       
-      const response = await fetchWithAuth("/decisors/admin/cleanup-mock", token, {
+      const data = await fetchWithAuth<{ deleted: number; message: string }>("/decisors/admin/cleanup-mock", token, {
         method: "DELETE",
       });
       
-      const data = await response.json();
       setSuccessMessage(`${data.deleted} decisores mockados removidos com sucesso!`);
       
       // Clear success message after 5 seconds
