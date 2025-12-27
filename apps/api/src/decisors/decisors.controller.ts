@@ -74,6 +74,35 @@ export class DecisorsController {
     return this.decisorsService.findAll(accountId);
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get decisor statistics for organization' })
+  getStats(@CurrentUser() user: User) {
+    return this.decisorsService.getDecisorStats(user.organizationId);
+  }
+
+  @Get('by-label/:label')
+  @ApiOperation({ summary: 'Get decisors by label' })
+  getByLabel(@CurrentUser() user: User, @Param('label') label: DecisorLabel) {
+    return this.decisorsService.getDecisorsByLabel(user.organizationId, label);
+  }
+
+  @Get('top-by-score')
+  @ApiOperation({ summary: 'Get top decisors by decisor score' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  getTopByScore(@CurrentUser() user: User, @Query('limit') limit?: string) {
+    return this.decisorsService.getTopDecisorsByScore(
+      user.organizationId,
+      limit ? parseInt(limit, 10) : 10,
+    );
+  }
+
+  @Delete('admin/cleanup-mock')
+  @Roles(UserRole.EXEC)
+  @ApiOperation({ summary: 'Delete mock decisors with fake LinkedIn URLs' })
+  cleanupMockDecisors(@CurrentUser() user: User) {
+    return this.decisorsService.deleteMockDecisors(user.organizationId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get decisor by ID' })
   findOne(@Param('id') id: string) {
@@ -97,28 +126,6 @@ export class DecisorsController {
     return this.decisorsService.remove(id);
   }
 
-  @Get('stats')
-  @ApiOperation({ summary: 'Get decisor statistics for organization' })
-  getStats(@CurrentUser() user: User) {
-    return this.decisorsService.getDecisorStats(user.organizationId);
-  }
-
-  @Get('by-label/:label')
-  @ApiOperation({ summary: 'Get decisors by label' })
-  getByLabel(@CurrentUser() user: User, @Param('label') label: DecisorLabel) {
-    return this.decisorsService.getDecisorsByLabel(user.organizationId, label);
-  }
-
-  @Get('top-by-score')
-  @ApiOperation({ summary: 'Get top decisors by decisor score' })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  getTopByScore(@CurrentUser() user: User, @Query('limit') limit?: string) {
-    return this.decisorsService.getTopDecisorsByScore(
-      user.organizationId,
-      limit ? parseInt(limit, 10) : 10,
-    );
-  }
-
   @Post(':id/feedback')
   @ApiOperation({ summary: 'Submit seller feedback for decisor' })
   submitFeedback(
@@ -132,12 +139,5 @@ export class DecisorsController {
       feedbackDto.notes,
       user.id,
     );
-  }
-
-  @Delete('admin/cleanup-mock')
-  @Roles(UserRole.EXEC)
-  @ApiOperation({ summary: 'Delete mock decisors with fake LinkedIn URLs' })
-  cleanupMockDecisors(@CurrentUser() user: User) {
-    return this.decisorsService.deleteMockDecisors(user.organizationId);
   }
 }

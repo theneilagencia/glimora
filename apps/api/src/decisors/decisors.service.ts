@@ -1,11 +1,46 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDecisorDto } from './dto/create-decisor.dto';
 import { DecisorFeedback, DecisorLabel } from '@prisma/client';
 
 @Injectable()
-export class DecisorsService {
+export class DecisorsService implements OnModuleInit {
+  private readonly logger = new Logger(DecisorsService.name);
+
   constructor(private prisma: PrismaService) {}
+
+  async onModuleInit() {
+    await this.cleanupAllMockDecisors();
+  }
+
+  private async cleanupAllMockDecisors() {
+    const mockLinkedInUrls = [
+      'https://linkedin.com/in/carlos-silva',
+      'https://linkedin.com/in/maria-santos',
+      'https://linkedin.com/in/pedro-oliveira',
+      'https://linkedin.com/in/ana-costa',
+      'https://linkedin.com/in/lucas-ferreira',
+    ];
+
+    try {
+      const result = await this.prisma.decisor.deleteMany({
+        where: {
+          linkedinUrl: { in: mockLinkedInUrls },
+        },
+      });
+
+      if (result.count > 0) {
+        this.logger.log(`Cleaned up ${result.count} mock decisors on startup`);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to cleanup mock decisors: ${error}`);
+    }
+  }
 
   async create(createDecisorDto: CreateDecisorDto) {
     return this.prisma.decisor.create({
