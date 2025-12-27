@@ -87,6 +87,14 @@ function formatTimeAgo(dateString: string): string {
   return `${diffDays}d atras`;
 }
 
+function getInitial(name?: string | null): string {
+  return name?.charAt(0)?.toUpperCase() || '?';
+}
+
+function getDisplayName(name?: string | null): string {
+  return name || 'Sem nome';
+}
+
 export default function AccountDetailPage() {
   const { getToken } = useAuth();
   const params = useParams();
@@ -287,11 +295,11 @@ export default function AccountDetailPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
-                        {decisor.name.charAt(0)}
+                        {getInitial(decisor.name)}
                       </div>
                       <div>
-                        <h4 className="font-medium text-white">{decisor.name}</h4>
-                        <p className="text-xs text-slate-400">{decisor.title}</p>
+                        <h4 className="font-medium text-white">{getDisplayName(decisor.name)}</h4>
+                        <p className="text-xs text-slate-400">{decisor.title || 'Sem cargo'}</p>
                       </div>
                     </div>
                     <div className="mt-4 flex items-center justify-between text-sm">
