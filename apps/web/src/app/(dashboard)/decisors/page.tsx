@@ -112,6 +112,17 @@ function formatTenure(months?: number): string {
   return `${years}a ${remainingMonths}m`;
 }
 
+function getInitials(firstName?: string | null, lastName?: string | null): string {
+  const first = firstName?.charAt(0)?.toUpperCase() || '';
+  const last = lastName?.charAt(0)?.toUpperCase() || '';
+  return first + last || '??';
+}
+
+function getFullName(firstName?: string | null, lastName?: string | null): string {
+  const parts = [firstName, lastName].filter(Boolean);
+  return parts.length > 0 ? parts.join(' ') : 'Sem nome';
+}
+
 export default function DecisorsPage() {
   const { getToken } = useAuth();
   const [decisors, setDecisors] = useState<Decisor[]>([]);
@@ -267,7 +278,7 @@ export default function DecisorsPage() {
   };
 
   const filteredDecisors = decisors.filter(decisor =>
-    `${decisor.firstName} ${decisor.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    getFullName(decisor.firstName, decisor.lastName).toLowerCase().includes(searchQuery.toLowerCase()) ||
     (decisor.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
     (decisor.account?.name?.toLowerCase() || "").includes(searchQuery.toLowerCase())
   );
@@ -454,7 +465,7 @@ export default function DecisorsPage() {
                                   <div className="flex items-center gap-3">
                                     <div className="relative">
                                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
-                                        {decisor.firstName.charAt(0)}{decisor.lastName.charAt(0)}
+                                        {getInitials(decisor.firstName, decisor.lastName)}
                                       </div>
                                       <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${getScoreBgColor(decisor.decisorScore || 0)} flex items-center justify-center`}>
                                         <span className={`text-xs font-bold ${getScoreColor(decisor.decisorScore || 0)}`}>
@@ -464,7 +475,7 @@ export default function DecisorsPage() {
                                     </div>
                                     <div>
                                       <h3 className="font-semibold text-white">
-                                        {decisor.firstName} {decisor.lastName}
+                                        {getFullName(decisor.firstName, decisor.lastName)}
                                       </h3>
                                       <p className="text-xs text-slate-400">{decisor.title || "Sem cargo"}</p>
                                       <p className="text-xs text-blue-400">{decisor.account?.name || "Sem conta"}</p>
