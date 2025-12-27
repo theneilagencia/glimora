@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class JobsService {
+export class JobsService implements OnModuleInit {
   private readonly logger = new Logger(JobsService.name);
 
   constructor(
@@ -12,6 +12,102 @@ export class JobsService {
     @InjectQueue('decisor-detection') private decisorQueue: Queue,
     private prisma: PrismaService,
   ) {}
+
+  async onModuleInit() {
+    // Schedule weekly jobs for all organizations on startup
+    await this.initializeWeeklyJobs();
+  }
+
+  private async initializeWeeklyJobs() {
+    try {
+      // Get all organizations
+      const organizations = await this.prisma.organization.findMany({
+        select: { id: true, name: true },
+      });
+
+      this.logger.log(
+        `Initializing weekly jobs for ${organizations.length} organizations`,
+      );
+
+      for (const org of organizations) {
+        await this.ensureWeeklyDecisorDetectionJob(org.id);
+        await this.ensureWeeklySignalCollectionJob(org.id);
+      }
+
+      this.logger.log('Weekly jobs initialization completed');
+    } catch (error) {
+      this.logger.warn(
+        `Failed to initialize weekly jobs: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      // Don't throw - app should still start even if Redis is down
+    }
+  }
+
+  private async ensureWeeklyDecisorDetectionJob(organizationId: string) {
+    try {
+      const jobId = `weekly-decisor-detection:${organizationId}`;
+      const existingJobs = await this.decisorQueue.getRepeatableJobs();
+      const exists = existingJobs.some((job) => job.id === jobId);
+
+      if (!exists) {
+        await this.decisorQueue.add(
+          'weekly-decisor-detection',
+          { organizationId },
+          {
+            repeat: {
+              pattern: '0 0 * * 1', // Every Monday at midnight
+            },
+            jobId,
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 1000,
+            },
+          },
+        );
+        this.logger.log(
+          `Created weekly decisor detection job for organization ${organizationId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create weekly decisor detection job for ${organizationId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  private async ensureWeeklySignalCollectionJob(organizationId: string) {
+    try {
+      const jobId = `weekly-signal-collection:${organizationId}`;
+      const existingJobs = await this.signalQueue.getRepeatableJobs();
+      const exists = existingJobs.some((job) => job.id === jobId);
+
+      if (!exists) {
+        await this.signalQueue.add(
+          'weekly-collection',
+          { organizationId },
+          {
+            repeat: {
+              pattern: '0 0 * * 1', // Every Monday at midnight
+            },
+            jobId,
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 1000,
+            },
+          },
+        );
+        this.logger.log(
+          `Created weekly signal collection job for organization ${organizationId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create weekly signal collection job for ${organizationId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
 
   async scheduleSignalCollection(organizationId: string, accountId?: string) {
     const job = await this.signalQueue.add(
