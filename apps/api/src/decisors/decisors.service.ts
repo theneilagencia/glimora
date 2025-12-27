@@ -256,4 +256,26 @@ export class DecisorsService {
       withFeedback,
     };
   }
+
+  async deleteMockDecisors(organizationId: string) {
+    const mockLinkedInUrls = [
+      'https://linkedin.com/in/carlos-silva',
+      'https://linkedin.com/in/maria-santos',
+      'https://linkedin.com/in/pedro-oliveira',
+      'https://linkedin.com/in/ana-costa',
+      'https://linkedin.com/in/lucas-ferreira',
+    ];
+
+    const result = await this.prisma.decisor.deleteMany({
+      where: {
+        account: { organizationId },
+        linkedinUrl: { in: mockLinkedInUrls },
+      },
+    });
+
+    return {
+      deleted: result.count,
+      message: `Deleted ${result.count} mock decisors`,
+    };
+  }
 }

@@ -133,4 +133,11 @@ export class DecisorsController {
       user.id,
     );
   }
+
+  @Delete('admin/cleanup-mock')
+  @Roles(UserRole.EXEC)
+  @ApiOperation({ summary: 'Delete mock decisors with fake LinkedIn URLs' })
+  cleanupMockDecisors(@CurrentUser() user: User) {
+    return this.decisorsService.deleteMockDecisors(user.organizationId);
+  }
 }
