@@ -313,4 +313,15 @@ export class DecisorsService implements OnModuleInit {
       message: `Deleted ${result.count} mock decisors`,
     };
   }
+
+  async deleteAllDecisorsForAccount(accountId: string) {
+    const result = await this.prisma.decisor.deleteMany({
+      where: { accountId },
+    });
+
+    return {
+      deleted: result.count,
+      message: `Deleted ${result.count} decisors for account ${accountId}`,
+    };
+  }
 }

@@ -103,6 +103,13 @@ export class DecisorsController {
     return this.decisorsService.deleteMockDecisors(user.organizationId);
   }
 
+  @Delete('account/:accountId/all')
+  @Roles(UserRole.EXEC)
+  @ApiOperation({ summary: 'Delete all decisors for an account (for fresh re-scrape)' })
+  deleteAllForAccount(@Param('accountId') accountId: string) {
+    return this.decisorsService.deleteAllDecisorsForAccount(accountId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get decisor by ID' })
   findOne(@Param('id') id: string) {
