@@ -49,6 +49,7 @@ export class DecisorDetectionProcessor extends WorkerHost {
 
       let totalDecisorsCreated = 0;
       let totalDecisorsUpdated = 0;
+      let totalDecisorsDeleted = 0;
 
       for (const account of accounts) {
         if (!account.linkedinUrl) {
@@ -59,6 +60,7 @@ export class DecisorDetectionProcessor extends WorkerHost {
         const result = await this.detectDecisorsForAccount(account);
         totalDecisorsCreated += result.created;
         totalDecisorsUpdated += result.updated;
+        totalDecisorsDeleted += result.deleted;
       }
 
       await this.prisma.jobLog.update({
@@ -71,12 +73,13 @@ export class DecisorDetectionProcessor extends WorkerHost {
             accountId: job.data.accountId,
             totalDecisorsCreated,
             totalDecisorsUpdated,
+            totalDecisorsDeleted,
           },
         },
       });
 
       this.logger.log(
-        `Job ${job.id} completed: ${totalDecisorsCreated} created, ${totalDecisorsUpdated} updated`,
+        `Job ${job.id} completed: ${totalDecisorsCreated} created, ${totalDecisorsUpdated} updated, ${totalDecisorsDeleted} deleted`,
       );
     } catch (error) {
       const errorMessage =
@@ -100,9 +103,9 @@ export class DecisorDetectionProcessor extends WorkerHost {
     id: string;
     name: string;
     linkedinUrl: string | null;
-  }): Promise<{ created: number; updated: number }> {
+  }): Promise<{ created: number; updated: number; deleted: number }> {
     if (!account.linkedinUrl) {
-      return { created: 0, updated: 0 };
+      return { created: 0, updated: 0, deleted: 0 };
     }
 
     this.logger.log(`Detecting decisors for account: ${account.name}`);
@@ -112,51 +115,74 @@ export class DecisorDetectionProcessor extends WorkerHost {
       50,
     );
 
+    // Skip items without valid LinkedIn profile URL
+    const validEmployees = employees.filter(
+      (e) => e.profileUrl && e.profileUrl.includes('linkedin.com/in/'),
+    );
+
+    this.logger.log(
+      `Found ${validEmployees.length} valid employees out of ${employees.length} total`,
+    );
+
     let created = 0;
     let updated = 0;
 
-    for (const employee of employees) {
+    // Track all valid LinkedIn URLs from this scrape
+    const scrapedLinkedInUrls = new Set<string>();
+
+    for (const employee of validEmployees) {
+      if (employee.profileUrl) {
+        scrapedLinkedInUrls.add(this.normalizeLinkedInUrl(employee.profileUrl));
+      }
+
       const scoreInput =
         this.decisorScoreService.parseLinkedInEmployee(employee);
       const scoreResult = this.decisorScoreService.calculateScore(scoreInput);
 
+      const normalizedUrl = employee.profileUrl
+        ? this.normalizeLinkedInUrl(employee.profileUrl)
+        : null;
+
       const existingDecisor = await this.prisma.decisor.findFirst({
         where: {
           accountId: account.id,
-          linkedinUrl: employee.profileUrl,
+          linkedinUrl: normalizedUrl,
         },
       });
 
-      if (existingDecisor) {
-        if (!existingDecisor.sellerFeedback) {
-          // Update ALL fields including identity fields to fix any previously polluted data
-          const nameParts = this.parseFullName(employee.fullName);
-          await this.prisma.decisor.update({
-            where: { id: existingDecisor.id },
-            data: {
-              firstName: nameParts.firstName || existingDecisor.firstName,
-              lastName: nameParts.lastName || existingDecisor.lastName,
-              title: employee.title || existingDecisor.title,
-              avatarUrl: employee.avatarUrl || existingDecisor.avatarUrl,
-              location: employee.location || existingDecisor.location,
-              tenureMonths: scoreInput.tenureMonths,
-              decisorScore: scoreResult.score,
-              decisorLabel: scoreResult.label,
-              profileComplete: scoreInput.profileComplete,
-              scrapedAt: new Date(),
-            },
-          });
-          updated++;
-        }
-      } else {
-        const nameParts = this.parseFullName(employee.fullName);
+      const nameParts = this.parseFullName(employee.fullName);
 
+      if (existingDecisor) {
+        // Always update identity fields (title, avatar, location) even if feedback exists
+        // Only skip updating score/label if feedback exists
+        await this.prisma.decisor.update({
+          where: { id: existingDecisor.id },
+          data: {
+            firstName: nameParts.firstName || existingDecisor.firstName,
+            lastName: nameParts.lastName || existingDecisor.lastName,
+            title: employee.title || existingDecisor.title,
+            avatarUrl: employee.avatarUrl || existingDecisor.avatarUrl,
+            location: employee.location || existingDecisor.location,
+            tenureMonths: scoreInput.tenureMonths,
+            // Only update score/label if no seller feedback
+            ...(existingDecisor.sellerFeedback
+              ? {}
+              : {
+                  decisorScore: scoreResult.score,
+                  decisorLabel: scoreResult.label,
+                }),
+            profileComplete: scoreInput.profileComplete,
+            scrapedAt: new Date(),
+          },
+        });
+        updated++;
+      } else {
         await this.prisma.decisor.create({
           data: {
             firstName: nameParts.firstName,
             lastName: nameParts.lastName,
             title: employee.title,
-            linkedinUrl: employee.profileUrl,
+            linkedinUrl: normalizedUrl,
             avatarUrl: employee.avatarUrl,
             location: employee.location,
             tenureMonths: scoreInput.tenureMonths,
@@ -171,11 +197,52 @@ export class DecisorDetectionProcessor extends WorkerHost {
       }
     }
 
+    // Delete stale decisors that are NOT in the latest Apify results
+    // Only delete those without seller feedback to preserve curated data
+    const staleDecisors = await this.prisma.decisor.findMany({
+      where: {
+        accountId: account.id,
+        sellerFeedback: null,
+        linkedinUrl: {
+          notIn: Array.from(scrapedLinkedInUrls),
+        },
+      },
+    });
+
+    let deleted = 0;
+    if (staleDecisors.length > 0) {
+      this.logger.log(
+        `Deleting ${staleDecisors.length} stale decisors for account ${account.name}`,
+      );
+      await this.prisma.decisor.deleteMany({
+        where: {
+          id: { in: staleDecisors.map((d) => d.id) },
+        },
+      });
+      deleted = staleDecisors.length;
+    }
+
     this.logger.log(
-      `Account ${account.name}: ${created} decisors created, ${updated} updated`,
+      `Account ${account.name}: ${created} created, ${updated} updated, ${deleted} deleted`,
     );
 
-    return { created, updated };
+    return { created, updated, deleted };
+  }
+
+  private normalizeLinkedInUrl(url: string): string {
+    // Normalize LinkedIn URL: remove query params, trailing slashes, ensure https
+    try {
+      const parsed = new URL(url);
+      // Remove query params and hash
+      let normalized = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+      // Remove trailing slash
+      normalized = normalized.replace(/\/$/, '');
+      // Ensure https
+      normalized = normalized.replace(/^http:/, 'https:');
+      return normalized;
+    } catch {
+      return url;
+    }
   }
 
   private parseFullName(fullName: string): {
