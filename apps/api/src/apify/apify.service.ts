@@ -30,7 +30,29 @@ interface ApifyRunResponse {
   };
 }
 
+interface ApifyCurrentPosition {
+  title?: string;
+  companyName?: string;
+  companyId?: string;
+  companyLinkedinUrl?: string;
+  description?: string;
+  current?: boolean;
+  tenureAtPosition?: {
+    numYears?: number;
+    numMonths?: number;
+  };
+  tenureAtCompany?: {
+    numYears?: number;
+    numMonths?: number;
+  };
+  startedOn?: {
+    month?: number;
+    year?: number;
+  };
+}
+
 interface ApifyDatasetItem {
+  id?: string;
   fullName?: string;
   firstName?: string;
   lastName?: string;
@@ -41,6 +63,7 @@ interface ApifyDatasetItem {
   linkedinUrl?: string;
   url?: string;
   profilePicture?: string;
+  pictureUrl?: string;
   avatarUrl?: string;
   photo?: string;
   location?: string | { linkedinText?: string };
@@ -50,8 +73,11 @@ interface ApifyDatasetItem {
   summary?: string;
   currentCompany?: string;
   company?: string;
-  tenureAtCompany?: string;
+  currentPositions?: ApifyCurrentPosition[];
+  tenureAtCompany?: string | { numYears?: number; numMonths?: number };
   totalExperience?: string;
+  openProfile?: boolean;
+  premium?: boolean;
 }
 
 @Injectable()
@@ -168,19 +194,59 @@ export class ApifyService {
         locationStr = item.location.linkedinText;
       }
 
+      // Get current position data (title, company, tenure)
+      const currentPosition = item.currentPositions?.[0];
+      const title =
+        item.title ||
+        item.headline ||
+        currentPosition?.title;
+      const currentCompany =
+        item.currentCompany ||
+        item.company ||
+        currentPosition?.companyName;
+
+      // Calculate tenure in months from currentPosition
+      let tenureAtCompanyStr: string | undefined;
+      if (currentPosition?.tenureAtCompany) {
+        const years = currentPosition.tenureAtCompany.numYears || 0;
+        const months = currentPosition.tenureAtCompany.numMonths || 0;
+        const totalMonths = years * 12 + months;
+        tenureAtCompanyStr = `${totalMonths} months`;
+      } else if (typeof item.tenureAtCompany === 'string') {
+        tenureAtCompanyStr = item.tenureAtCompany;
+      } else if (
+        item.tenureAtCompany &&
+        typeof item.tenureAtCompany === 'object'
+      ) {
+        const years = item.tenureAtCompany.numYears || 0;
+        const months = item.tenureAtCompany.numMonths || 0;
+        const totalMonths = years * 12 + months;
+        tenureAtCompanyStr = `${totalMonths} months`;
+      }
+
+      // Get avatar URL - try multiple field names
+      const avatarUrl =
+        item.pictureUrl ||
+        item.profilePicture ||
+        item.avatarUrl ||
+        item.photo;
+
+      // Get profile URL - normalize LinkedIn URL
+      const profileUrl = item.profileUrl || item.linkedinUrl || item.url;
+
       return {
         fullName,
-        firstName: item.firstName || fullName.split(' ')[0],
-        lastName: item.lastName || fullName.split(' ').slice(1).join(' '),
-        title: item.title || item.headline,
-        profileUrl: item.profileUrl || item.linkedinUrl || item.url,
-        avatarUrl: item.profilePicture || item.avatarUrl || item.photo,
+        firstName: item.firstName?.trim() || fullName.split(' ')[0],
+        lastName: item.lastName?.trim() || fullName.split(' ').slice(1).join(' '),
+        title,
+        profileUrl,
+        avatarUrl,
         location: locationStr,
         connectionDegree: item.connectionDegree,
         sharedConnections: item.sharedConnections,
         about: item.about || item.summary,
-        currentCompany: item.currentCompany || item.company,
-        tenureAtCompany: item.tenureAtCompany,
+        currentCompany,
+        tenureAtCompany: tenureAtCompanyStr,
         totalExperience: item.totalExperience,
       };
     });

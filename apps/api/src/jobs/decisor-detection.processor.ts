@@ -129,10 +129,15 @@ export class DecisorDetectionProcessor extends WorkerHost {
 
       if (existingDecisor) {
         if (!existingDecisor.sellerFeedback) {
+          // Update ALL fields including identity fields to fix any previously polluted data
+          const nameParts = this.parseFullName(employee.fullName);
           await this.prisma.decisor.update({
             where: { id: existingDecisor.id },
             data: {
+              firstName: nameParts.firstName || existingDecisor.firstName,
+              lastName: nameParts.lastName || existingDecisor.lastName,
               title: employee.title || existingDecisor.title,
+              avatarUrl: employee.avatarUrl || existingDecisor.avatarUrl,
               location: employee.location || existingDecisor.location,
               tenureMonths: scoreInput.tenureMonths,
               decisorScore: scoreResult.score,
