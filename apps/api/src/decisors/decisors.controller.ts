@@ -16,6 +16,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { DecisorsService } from './decisors.service';
+import { DecisorSyncService } from './decisor-sync.service';
 import { CreateDecisorDto } from './dto/create-decisor.dto';
 import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
 import { ClerkAuthGuard } from '../common/guards/clerk-auth.guard';
@@ -30,7 +31,10 @@ import type { User } from '@prisma/client';
 @Controller('decisors')
 @UseGuards(ClerkAuthGuard, RolesGuard)
 export class DecisorsController {
-  constructor(private readonly decisorsService: DecisorsService) {}
+  constructor(
+    private readonly decisorsService: DecisorsService,
+    private readonly decisorSyncService: DecisorSyncService,
+  ) {}
 
   @Post()
   @Roles(UserRole.EXEC, UserRole.MANAGER)
@@ -108,6 +112,26 @@ export class DecisorsController {
   @ApiOperation({ summary: 'Delete all decisors for an account (for fresh re-scrape)' })
   deleteAllForAccount(@Param('accountId') accountId: string) {
     return this.decisorsService.deleteAllDecisorsForAccount(accountId);
+  }
+
+  @Post('account/:accountId/sync')
+  @Roles(UserRole.EXEC, UserRole.MANAGER)
+  @ApiOperation({ 
+    summary: 'Sync decisors for an account (bypasses job queue)',
+    description: 'Synchronously fetches employees from LinkedIn via Apify and updates decisors. This endpoint bypasses the Redis job queue and runs directly. May take 1-5 minutes to complete.',
+  })
+  syncDecisorsForAccount(@Param('accountId') accountId: string) {
+    return this.decisorSyncService.syncDecisorsForAccount(accountId);
+  }
+
+  @Post('sync')
+  @Roles(UserRole.EXEC, UserRole.MANAGER)
+  @ApiOperation({ 
+    summary: 'Sync decisors for all accounts in organization (bypasses job queue)',
+    description: 'Synchronously fetches employees from LinkedIn via Apify for all accounts with LinkedIn URLs. This endpoint bypasses the Redis job queue and runs directly. May take several minutes to complete depending on the number of accounts.',
+  })
+  syncDecisorsForOrganization(@CurrentUser() user: User) {
+    return this.decisorSyncService.syncDecisorsForOrganization(user.organizationId);
   }
 
   @Get(':id')

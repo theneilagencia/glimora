@@ -227,19 +227,23 @@ export default function DecisorsPage() {
         return;
       }
       
-      await fetchWithAuth("/jobs/detect-decisors", token, {
+      // Use the synchronous sync endpoint that bypasses the Redis job queue
+      const result = await fetchWithAuth("/decisors/sync", token, {
         method: "POST",
       });
       
-      setSuccessMessage("Deteccao de decisores iniciada! Os resultados aparecerao em alguns minutos.");
+      const data = result as { totalCreated?: number; totalUpdated?: number; totalDeleted?: number; message?: string };
+      setSuccessMessage(
+        `Sincronizacao concluida! ${data.totalCreated || 0} criados, ${data.totalUpdated || 0} atualizados, ${data.totalDeleted || 0} removidos.`
+      );
       
-      // Clear success message after 5 seconds
-      setTimeout(() => setSuccessMessage(null), 5000);
+      // Clear success message after 10 seconds
+      setTimeout(() => setSuccessMessage(null), 10000);
       
-      // Refresh the list after a short delay
-      setTimeout(() => fetchDecisors(), 3000);
+      // Refresh the list immediately
+      await fetchDecisors();
     } catch (err) {
-      setError("Erro ao iniciar deteccao de decisores. Verifique se voce tem permissao.");
+      setError("Erro ao sincronizar decisores. Verifique se voce tem permissao.");
       console.error(err);
     } finally {
       setRefreshing(false);
