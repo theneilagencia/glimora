@@ -116,9 +116,12 @@ export class DecisorDetectionProcessor extends WorkerHost {
     );
 
     // Skip items without valid LinkedIn profile URL
-    const validEmployees = employees.filter(
-      (e) => e.profileUrl && e.profileUrl.includes('linkedin.com/in/'),
-    );
+    // Be lenient with URL format - accept with or without protocol
+    const validEmployees = employees.filter((e) => {
+      if (!e.profileUrl) return false;
+      const url = e.profileUrl.toLowerCase();
+      return url.includes('linkedin.com/in/') || url.includes('linkedin.com/pub/');
+    });
 
     this.logger.log(
       `Found ${validEmployees.length} valid employees out of ${employees.length} total`,
@@ -199,27 +202,60 @@ export class DecisorDetectionProcessor extends WorkerHost {
 
     // Delete stale decisors that are NOT in the latest Apify results
     // Only delete those without seller feedback to preserve curated data
-    const staleDecisors = await this.prisma.decisor.findMany({
+    // GUARD: Only delete if we got valid employees from Apify (avoid deleting all on API error)
+    let deleted = 0;
+    
+    if (scrapedLinkedInUrls.size > 0) {
+      // Delete decisors with linkedinUrl NOT in the scraped set
+      const staleDecisors = await this.prisma.decisor.findMany({
+        where: {
+          accountId: account.id,
+          sellerFeedback: null,
+          linkedinUrl: {
+            notIn: Array.from(scrapedLinkedInUrls),
+          },
+        },
+      });
+
+      if (staleDecisors.length > 0) {
+        this.logger.log(
+          `Deleting ${staleDecisors.length} stale decisors for account ${account.name}`,
+        );
+        await this.prisma.decisor.deleteMany({
+          where: {
+            id: { in: staleDecisors.map((d) => d.id) },
+          },
+        });
+        deleted = staleDecisors.length;
+      }
+    } else {
+      this.logger.warn(
+        `No valid employees found from Apify for account ${account.name} - skipping deletion to avoid data loss`,
+      );
+    }
+    
+    // Also clean up decisors with null/invalid linkedinUrl (these are stale from old scrapes)
+    const invalidDecisors = await this.prisma.decisor.findMany({
       where: {
         accountId: account.id,
         sellerFeedback: null,
-        linkedinUrl: {
-          notIn: Array.from(scrapedLinkedInUrls),
-        },
+        OR: [
+          { linkedinUrl: null },
+          { linkedinUrl: '' },
+        ],
       },
     });
-
-    let deleted = 0;
-    if (staleDecisors.length > 0) {
+    
+    if (invalidDecisors.length > 0) {
       this.logger.log(
-        `Deleting ${staleDecisors.length} stale decisors for account ${account.name}`,
+        `Deleting ${invalidDecisors.length} decisors with invalid LinkedIn URLs for account ${account.name}`,
       );
       await this.prisma.decisor.deleteMany({
         where: {
-          id: { in: staleDecisors.map((d) => d.id) },
+          id: { in: invalidDecisors.map((d) => d.id) },
         },
       });
-      deleted = staleDecisors.length;
+      deleted += invalidDecisors.length;
     }
 
     this.logger.log(
@@ -232,7 +268,12 @@ export class DecisorDetectionProcessor extends WorkerHost {
   private normalizeLinkedInUrl(url: string): string {
     // Normalize LinkedIn URL: remove query params, trailing slashes, ensure https
     try {
-      const parsed = new URL(url);
+      // Add https:// if no protocol is present
+      let urlToParse = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        urlToParse = `https://${url}`;
+      }
+      const parsed = new URL(urlToParse);
       // Remove query params and hash
       let normalized = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
       // Remove trailing slash
@@ -241,7 +282,15 @@ export class DecisorDetectionProcessor extends WorkerHost {
       normalized = normalized.replace(/^http:/, 'https:');
       return normalized;
     } catch {
-      return url;
+      // If URL parsing fails, return a basic normalized version
+      let normalized = url.replace(/\?.*$/, '').replace(/#.*$/, '').replace(/\/$/, '');
+      if (!normalized.startsWith('https://')) {
+        normalized = normalized.replace(/^http:\/\//, 'https://');
+        if (!normalized.startsWith('https://')) {
+          normalized = `https://${normalized}`;
+        }
+      }
+      return normalized;
     }
   }
 
