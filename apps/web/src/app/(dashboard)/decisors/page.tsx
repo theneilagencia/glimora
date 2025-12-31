@@ -132,7 +132,16 @@ export default function DecisorsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingDecisor, setEditingDecisor] = useState<Decisor | null>(null);
   const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    title: "",
+    email: "",
+    linkedinUrl: "",
+  });
+  const [editFormData, setEditFormData] = useState({
     firstName: "",
     lastName: "",
     title: "",
@@ -235,6 +244,61 @@ export default function DecisorsPage() {
     } catch (err) {
       setError(getErrorMessage(err));
       console.error(err);
+    }
+  };
+
+  const handleEdit = (decisor: Decisor) => {
+    setEditingDecisor(decisor);
+    setEditFormData({
+      firstName: decisor.firstName || "",
+      lastName: decisor.lastName || "",
+      title: decisor.title || "",
+      email: decisor.email || "",
+      linkedinUrl: decisor.linkedinUrl || "",
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editingDecisor || !editFormData.firstName.trim() || !editFormData.lastName.trim()) {
+      setError("Nome e sobrenome são obrigatórios");
+      return;
+    }
+    
+    if (!isOnline()) {
+      setError("Sem conexão com a internet. Verifique sua conexão e tente novamente.");
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      setError(null);
+      const token = await safeGetToken(getToken);
+      if (!token) {
+        setError("Sessão não disponível. Por favor, faça login novamente.");
+        return;
+      }
+      
+      await fetchWithAuth(`/decisors/${editingDecisor.id}`, token, {
+        method: "PATCH",
+        body: JSON.stringify({
+          firstName: editFormData.firstName,
+          lastName: editFormData.lastName,
+          title: editFormData.title || undefined,
+          email: editFormData.email || undefined,
+          linkedinUrl: editFormData.linkedinUrl || undefined,
+        }),
+      });
+      
+      setEditFormData({ firstName: "", lastName: "", title: "", email: "", linkedinUrl: "" });
+      setEditingDecisor(null);
+      setIsEditDialogOpen(false);
+      await fetchDecisors();
+    } catch (err) {
+      setError(getErrorMessage(err));
+      console.error(err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -394,6 +458,77 @@ export default function DecisorsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="bg-slate-800 border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="text-white">Editar Decisor</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Nome *</Label>
+                  <Input 
+                    className="bg-slate-700 border-slate-600 text-white" 
+                    placeholder="Joao"
+                    value={editFormData.firstName}
+                    onChange={(e) => setEditFormData({ ...editFormData, firstName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Sobrenome *</Label>
+                  <Input 
+                    className="bg-slate-700 border-slate-600 text-white" 
+                    placeholder="Silva"
+                    value={editFormData.lastName}
+                    onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-300">Cargo</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="CEO"
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-300">Email</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="email@empresa.com"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-300">LinkedIn URL</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="https://linkedin.com/in/"
+                  value={editFormData.linkedinUrl}
+                  onChange={(e) => setEditFormData({ ...editFormData, linkedinUrl: e.target.value })}
+                />
+              </div>
+              <Button 
+                className="w-full bg-blue-600 hover:bg-blue-700" 
+                onClick={handleEditSubmit}
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar Alteracoes"
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
         </div>
       </div>
 
@@ -471,7 +606,10 @@ export default function DecisorsPage() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent className="bg-slate-800 border-slate-700">
-                                      <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
+                                      <DropdownMenuItem 
+                                        className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700"
+                                        onClick={() => handleEdit(decisor)}
+                                      >
                                         Editar
                                       </DropdownMenuItem>
                                       <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
