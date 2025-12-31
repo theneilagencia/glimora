@@ -13,6 +13,7 @@ export interface LinkedInEmployee {
   sharedConnections?: number;
   about?: string;
   currentCompany?: string;
+  currentCompanyLinkedinUrl?: string;
   tenureAtCompany?: string;
   totalExperience?: string;
 }
@@ -205,6 +206,9 @@ export class ApifyService {
         item.company ||
         currentPosition?.companyName;
 
+      // Get the company LinkedIn URL from current position for filtering
+      const currentCompanyLinkedinUrl = currentPosition?.companyLinkedinUrl;
+
       // Calculate tenure in months from currentPosition
       let tenureAtCompanyStr: string | undefined;
       if (currentPosition?.tenureAtCompany) {
@@ -246,6 +250,7 @@ export class ApifyService {
         sharedConnections: item.sharedConnections,
         about: item.about || item.summary,
         currentCompany,
+        currentCompanyLinkedinUrl,
         tenureAtCompany: tenureAtCompanyStr,
         totalExperience: item.totalExperience,
       };
