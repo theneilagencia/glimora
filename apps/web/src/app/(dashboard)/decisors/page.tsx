@@ -34,7 +34,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { fetchWithAuth } from "@/lib/api";
+import { fetchWithAuth, safeGetToken, getErrorMessage, isOnline, NetworkError, AuthError } from "@/lib/api";
 
 interface Decisor {
   id: string;
@@ -144,15 +144,22 @@ export default function DecisorsPage() {
     try {
       setLoading(true);
       setError(null);
-      const token = await getToken();
+      
+      // Check if online before attempting to fetch
+      if (!isOnline()) {
+        setError("Sem conexão com a internet. Verifique sua conexão e tente novamente.");
+        return;
+      }
+      
+      const token = await safeGetToken(getToken);
       if (!token) {
-        setError("Nao autenticado");
+        setError("Sessão não disponível. Por favor, faça login novamente.");
         return;
       }
       const data = await fetchWithAuth<Decisor[]>("/decisors", token);
       setDecisors(data);
     } catch (err) {
-      setError("Erro ao carregar decisores");
+      setError(getErrorMessage(err));
       console.error(err);
     } finally {
       setLoading(false);
@@ -165,16 +172,22 @@ export default function DecisorsPage() {
 
   const handleSubmit = async () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      setError("Nome e sobrenome sao obrigatorios");
+      setError("Nome e sobrenome são obrigatórios");
+      return;
+    }
+    
+    // Check if online before attempting to save
+    if (!isOnline()) {
+      setError("Sem conexão com a internet. Verifique sua conexão e tente novamente.");
       return;
     }
     
     try {
       setSaving(true);
       setError(null);
-      const token = await getToken();
+      const token = await safeGetToken(getToken);
       if (!token) {
-        setError("Nao autenticado");
+        setError("Sessão não disponível. Por favor, faça login novamente.");
         return;
       }
       
@@ -193,7 +206,7 @@ export default function DecisorsPage() {
       setIsDialogOpen(false);
       await fetchDecisors();
     } catch (err) {
-      setError("Erro ao salvar decisor. Verifique se voce tem permissao.");
+      setError(getErrorMessage(err));
       console.error(err);
     } finally {
       setSaving(false);
@@ -201,9 +214,18 @@ export default function DecisorsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if online before attempting to delete
+    if (!isOnline()) {
+      setError("Sem conexão com a internet. Verifique sua conexão e tente novamente.");
+      return;
+    }
+    
     try {
-      const token = await getToken();
-      if (!token) return;
+      const token = await safeGetToken(getToken);
+      if (!token) {
+        setError("Sessão não disponível. Por favor, faça login novamente.");
+        return;
+      }
       
       await fetchWithAuth(`/decisors/${id}`, token, {
         method: "DELETE",
@@ -211,19 +233,25 @@ export default function DecisorsPage() {
       
       await fetchDecisors();
     } catch (err) {
-      setError("Erro ao remover decisor");
+      setError(getErrorMessage(err));
       console.error(err);
     }
   };
 
   const handleRefreshDecisors = async () => {
+    // Check if online before attempting to sync
+    if (!isOnline()) {
+      setError("Sem conexão com a internet. Verifique sua conexão e tente novamente.");
+      return;
+    }
+    
     try {
       setRefreshing(true);
       setError(null);
       setSuccessMessage(null);
-      const token = await getToken();
+      const token = await safeGetToken(getToken);
       if (!token) {
-        setError("Nao autenticado");
+        setError("Sessão não disponível. Por favor, faça login novamente.");
         return;
       }
       
@@ -234,7 +262,7 @@ export default function DecisorsPage() {
       
       const data = result as { totalCreated?: number; totalUpdated?: number; totalDeleted?: number; message?: string };
       setSuccessMessage(
-        `Sincronizacao concluida! ${data.totalCreated || 0} criados, ${data.totalUpdated || 0} atualizados, ${data.totalDeleted || 0} removidos.`
+        `Sincronização concluída! ${data.totalCreated || 0} criados, ${data.totalUpdated || 0} atualizados, ${data.totalDeleted || 0} removidos.`
       );
       
       // Clear success message after 10 seconds
@@ -243,7 +271,7 @@ export default function DecisorsPage() {
       // Refresh the list immediately
       await fetchDecisors();
     } catch (err) {
-      setError("Erro ao sincronizar decisores. Verifique se voce tem permissao.");
+      setError(getErrorMessage(err));
       console.error(err);
     } finally {
       setRefreshing(false);
