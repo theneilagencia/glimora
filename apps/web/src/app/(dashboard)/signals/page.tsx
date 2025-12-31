@@ -123,10 +123,22 @@ export default function SignalsPage() {
     fetchSignals();
   }, []);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchSignals();
-  };
+    const handleRefresh = async () => {
+      setRefreshing(true);
+      try {
+        const token = await getToken();
+        if (!token) return;
+        // First, trigger signal collection
+        await fetchWithAuth<{ totalCreated: number; message: string }>("/signals/sync", token, {
+          method: "POST",
+        });
+        // Then fetch the updated signals
+        await fetchSignals();
+      } catch (error) {
+        console.error("Error syncing signals:", error);
+        setRefreshing(false);
+      }
+    };
 
   const filteredSignals = signals.filter(signal => {
     const matchesSearch = signal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||

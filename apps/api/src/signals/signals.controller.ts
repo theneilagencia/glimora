@@ -15,6 +15,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { SignalsService } from './signals.service';
+import { SignalSyncService } from './signal-sync.service';
 import { CreateSignalDto } from './dto/create-signal.dto';
 import { ClerkAuthGuard } from '../common/guards/clerk-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -28,7 +29,10 @@ import type { User } from '@prisma/client';
 @Controller('signals')
 @UseGuards(ClerkAuthGuard, RolesGuard)
 export class SignalsController {
-  constructor(private readonly signalsService: SignalsService) {}
+  constructor(
+    private readonly signalsService: SignalsService,
+    private readonly signalSyncService: SignalSyncService,
+  ) {}
 
   @Post()
   @Roles(UserRole.EXEC, UserRole.MANAGER)
@@ -54,6 +58,18 @@ export class SignalsController {
       limit: limit ? parseInt(limit, 10) : undefined,
       days: days ? parseInt(days, 10) : undefined,
     });
+  }
+
+  @Post('sync')
+  @Roles(UserRole.EXEC, UserRole.MANAGER)
+  @ApiOperation({
+    summary:
+      'Synchronously collect signals for all accounts (bypasses job queue)',
+  })
+  syncSignals(@CurrentUser() user: User) {
+    return this.signalSyncService.syncSignalsForOrganization(
+      user.organizationId,
+    );
   }
 
   @Get('stats')
