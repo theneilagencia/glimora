@@ -120,17 +120,47 @@ export class DecisorSyncService {
       50,
     );
 
-    // Skip items without valid LinkedIn profile URL
-    // Be lenient with URL format - accept with or without protocol
-    const validEmployees = employees.filter((e) => {
+    // Step 1: Filter by valid LinkedIn profile URL
+    const employeesWithValidProfile = employees.filter((e) => {
       if (!e.profileUrl) return false;
       const url = e.profileUrl.toLowerCase();
       return url.includes('linkedin.com/in/') || url.includes('linkedin.com/pub/');
     });
 
     this.logger.log(
-      `Found ${validEmployees.length} valid employees out of ${employees.length} total`,
+      `Found ${employeesWithValidProfile.length} employees with valid profile URLs out of ${employees.length} total`,
     );
+
+    // Step 2: Filter by company URL match - CRITICAL for data integrity
+    // Only include employees whose current company LinkedIn URL matches the requested company
+    const validEmployees = employeesWithValidProfile.filter((e) => {
+      const matches = this.doCompanyUrlsMatch(account.linkedinUrl!, e.currentCompanyLinkedinUrl);
+      if (!matches) {
+        this.logger.debug(
+          `Filtering out ${e.fullName} - company URL mismatch: expected=${account.linkedinUrl}, got=${e.currentCompanyLinkedinUrl || 'none'}`,
+        );
+      }
+      return matches;
+    });
+
+    const filteredOutCount = employeesWithValidProfile.length - validEmployees.length;
+    this.logger.log(
+      `After company URL filtering: ${validEmployees.length} matched, ${filteredOutCount} filtered out`,
+    );
+
+    // Integrity check: if we filtered out too many employees, log a warning
+    if (employeesWithValidProfile.length > 0 && validEmployees.length === 0) {
+      this.logger.warn(
+        `All ${employeesWithValidProfile.length} employees were filtered out for account ${account.name} - ` +
+        `this may indicate the Apify actor returned employees from a different company. ` +
+        `Requested company URL: ${account.linkedinUrl}`,
+      );
+    } else if (filteredOutCount > validEmployees.length && validEmployees.length > 0) {
+      this.logger.warn(
+        `More than half of employees (${filteredOutCount}/${employeesWithValidProfile.length}) were filtered out for account ${account.name} - ` +
+        `this may indicate data quality issues from Apify`,
+      );
+    }
 
     let created = 0;
     let updated = 0;
@@ -297,6 +327,51 @@ export class DecisorSyncService {
       }
       return normalized;
     }
+  }
+
+  private normalizeCompanyLinkedInUrl(url: string): string {
+    // Normalize LinkedIn company URL to extract the company slug for comparison
+    // Handles variations like:
+    // - https://www.linkedin.com/company/ivory/
+    // - https://linkedin.com/company/ivory
+    // - linkedin.com/company/ivory/about
+    try {
+      let urlToParse = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        urlToParse = `https://${url}`;
+      }
+      const parsed = new URL(urlToParse);
+      const pathname = parsed.pathname.toLowerCase();
+      
+      // Extract company slug from /company/{slug} or /company/{slug}/...
+      const companyMatch = pathname.match(/\/company\/([^\/]+)/);
+      if (companyMatch) {
+        return companyMatch[1].toLowerCase();
+      }
+      
+      // Fallback: return the full normalized URL
+      return pathname.replace(/\/$/, '').toLowerCase();
+    } catch {
+      // If URL parsing fails, try to extract company slug directly
+      const match = url.toLowerCase().match(/\/company\/([^\/\?#]+)/);
+      if (match) {
+        return match[1];
+      }
+      return url.toLowerCase().replace(/\/$/, '');
+    }
+  }
+
+  private doCompanyUrlsMatch(requestedUrl: string, employeeCompanyUrl: string | undefined): boolean {
+    if (!employeeCompanyUrl) {
+      return false;
+    }
+    
+    const requestedSlug = this.normalizeCompanyLinkedInUrl(requestedUrl);
+    const employeeSlug = this.normalizeCompanyLinkedInUrl(employeeCompanyUrl);
+    
+    this.logger.debug(`Comparing company URLs: requested="${requestedSlug}" vs employee="${employeeSlug}"`);
+    
+    return requestedSlug === employeeSlug;
   }
 
   private parseFullName(fullName: string): {
