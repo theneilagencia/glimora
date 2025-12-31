@@ -1,19 +1,27 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
+import { Injectable, Logger, OnModuleInit, Optional, Inject } from '@nestjs/common';
+import { getQueueToken } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
+
+// Check if BullMQ workers are disabled
+const DISABLE_BULLMQ_WORKERS = process.env.DISABLE_BULLMQ_WORKERS === 'true';
 
 @Injectable()
 export class JobsService implements OnModuleInit {
   private readonly logger = new Logger(JobsService.name);
 
   constructor(
-    @InjectQueue('signal-collection') private signalQueue: Queue,
-    @InjectQueue('decisor-detection') private decisorQueue: Queue,
+    @Optional() @Inject(getQueueToken('signal-collection')) private signalQueue: Queue | null,
+    @Optional() @Inject(getQueueToken('decisor-detection')) private decisorQueue: Queue | null,
     private prisma: PrismaService,
   ) {}
 
   async onModuleInit() {
+    // Skip weekly jobs initialization if BullMQ is disabled
+    if (DISABLE_BULLMQ_WORKERS || !this.signalQueue || !this.decisorQueue) {
+      this.logger.log('BullMQ workers disabled - skipping weekly jobs initialization');
+      return;
+    }
     // Schedule weekly jobs for all organizations on startup
     await this.initializeWeeklyJobs();
   }
@@ -44,6 +52,7 @@ export class JobsService implements OnModuleInit {
   }
 
   private async ensureWeeklyDecisorDetectionJob(organizationId: string) {
+    if (!this.decisorQueue) return;
     try {
       const jobId = `weekly-decisor-detection:${organizationId}`;
       const existingJobs = await this.decisorQueue.getRepeatableJobs();
@@ -77,6 +86,7 @@ export class JobsService implements OnModuleInit {
   }
 
   private async ensureWeeklySignalCollectionJob(organizationId: string) {
+    if (!this.signalQueue) return;
     try {
       const jobId = `weekly-signal-collection:${organizationId}`;
       const existingJobs = await this.signalQueue.getRepeatableJobs();
@@ -110,6 +120,10 @@ export class JobsService implements OnModuleInit {
   }
 
   async scheduleSignalCollection(organizationId: string, accountId?: string) {
+    if (!this.signalQueue) {
+      this.logger.warn('BullMQ disabled - cannot schedule signal collection');
+      return { jobId: null, status: 'disabled', message: 'Job queue is disabled' };
+    }
     const job = await this.signalQueue.add(
       'collect-signals',
       { organizationId, accountId },
@@ -129,6 +143,10 @@ export class JobsService implements OnModuleInit {
   }
 
   async scheduleWeeklyCollection(organizationId: string) {
+    if (!this.signalQueue) {
+      this.logger.warn('BullMQ disabled - cannot schedule weekly collection');
+      return { jobId: null, status: 'disabled', message: 'Job queue is disabled' };
+    }
     const job = await this.signalQueue.add(
       'weekly-collection',
       { organizationId },
@@ -194,6 +212,12 @@ export class JobsService implements OnModuleInit {
   }
 
   async getQueueStatus() {
+    if (!this.signalQueue || !this.decisorQueue) {
+      return {
+        signalCollection: { waiting: 0, active: 0, completed: 0, failed: 0, disabled: true },
+        decisorDetection: { waiting: 0, active: 0, completed: 0, failed: 0, disabled: true },
+      };
+    }
     const [waiting, active, completed, failed] = await Promise.all([
       this.signalQueue.getWaitingCount(),
       this.signalQueue.getActiveCount(),
@@ -226,6 +250,10 @@ export class JobsService implements OnModuleInit {
   }
 
   async scheduleDecisorDetection(organizationId: string, accountId?: string) {
+    if (!this.decisorQueue) {
+      this.logger.warn('BullMQ disabled - cannot schedule decisor detection');
+      return { jobId: null, status: 'disabled', message: 'Job queue is disabled. Use /decisors/sync endpoint instead.' };
+    }
     const job = await this.decisorQueue.add(
       'detect-decisors',
       { organizationId, accountId },
@@ -245,6 +273,10 @@ export class JobsService implements OnModuleInit {
   }
 
   async scheduleWeeklyDecisorDetection(organizationId: string) {
+    if (!this.decisorQueue) {
+      this.logger.warn('BullMQ disabled - cannot schedule weekly decisor detection');
+      return { jobId: null, status: 'disabled', message: 'Job queue is disabled' };
+    }
     const job = await this.decisorQueue.add(
       'weekly-decisor-detection',
       { organizationId },

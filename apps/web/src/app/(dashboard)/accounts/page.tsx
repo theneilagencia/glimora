@@ -86,7 +86,15 @@ export default function AccountsPage() {
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formData, setFormData] = useState({
+    name: "",
+    industry: "",
+    website: "",
+    linkedinUrl: ""
+  });
+  const [editFormData, setEditFormData] = useState({
     name: "",
     industry: "",
     website: "",
@@ -145,6 +153,41 @@ export default function AccountsPage() {
       fetchAccounts();
     } catch (error) {
       console.error("Error deleting account:", error);
+    }
+  };
+
+  const handleEdit = (account: Account) => {
+    setEditingAccount(account);
+    setEditFormData({
+      name: account.name,
+      industry: account.industry,
+      website: account.website || "",
+      linkedinUrl: account.linkedinUrl || ""
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editingAccount || !editFormData.name || !editFormData.industry) return;
+    
+    setSaving(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      
+      await fetchWithAuth(`/accounts/${editingAccount.id}`, token, {
+        method: "PATCH",
+        body: JSON.stringify(editFormData)
+      });
+      
+      setEditFormData({ name: "", industry: "", website: "", linkedinUrl: "" });
+      setEditingAccount(null);
+      setIsEditDialogOpen(false);
+      fetchAccounts();
+    } catch (error) {
+      console.error("Error updating account:", error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -227,6 +270,60 @@ export default function AccountsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="bg-slate-800 border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="text-white">Editar Conta</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label className="text-slate-300">Nome da Empresa</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="Ex: TechCorp Brasil"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-300">Industria</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="Ex: Tecnologia"
+                  value={editFormData.industry}
+                  onChange={(e) => setEditFormData({ ...editFormData, industry: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-300">Website</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="https://"
+                  value={editFormData.website}
+                  onChange={(e) => setEditFormData({ ...editFormData, website: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-300">LinkedIn URL</Label>
+                <Input 
+                  className="bg-slate-700 border-slate-600 text-white" 
+                  placeholder="https://linkedin.com/company/"
+                  value={editFormData.linkedinUrl}
+                  onChange={(e) => setEditFormData({ ...editFormData, linkedinUrl: e.target.value })}
+                />
+              </div>
+              <Button 
+                className="w-full bg-blue-600 hover:bg-blue-700" 
+                onClick={handleEditSubmit}
+                disabled={saving || !editFormData.name || !editFormData.industry}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Salvar Alteracoes
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -287,7 +384,10 @@ export default function AccountsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="bg-slate-800 border-slate-700">
-                      <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
+                      <DropdownMenuItem 
+                        className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700"
+                        onClick={() => handleEdit(account)}
+                      >
                         Editar
                       </DropdownMenuItem>
                       <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white focus:bg-slate-700">
