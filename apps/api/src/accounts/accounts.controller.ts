@@ -23,11 +23,12 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
 import type { User } from '@prisma/client';
+import { UserContextGuard } from '../common/guards/user-context.guard';
 
 @ApiTags('accounts')
 @ApiBearerAuth()
 @Controller('accounts')
-@UseGuards(ClerkAuthGuard, RolesGuard)
+@UseGuards(ClerkAuthGuard, UserContextGuard, RolesGuard)
 export class AccountsController {
   constructor(private readonly accountsService: AccountsService) {}
 

@@ -11,11 +11,15 @@ import {
   Zap,
   Linkedin,
   Globe,
-  Loader2
+  Loader2,
+  Edit,
+  Save
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { fetchWithAuth } from "@/lib/api";
@@ -105,6 +109,8 @@ export default function AccountDetailPage() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState<Partial<Account>>({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -120,6 +126,7 @@ export default function AccountDetailPage() {
         ]);
         
         setAccount(accountData);
+        setFormData(accountData);
         setDecisors(decisorsData);
         setSignals(signalsData);
         setActions(actionsData);
@@ -131,7 +138,24 @@ export default function AccountDetailPage() {
     };
     
     fetchData();
-  }, [accountId]);
+  }, [accountId, getToken]);
+
+  const handleUpdate = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const updatedAccount = await fetchWithAuth<Account>(`/accounts/${accountId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(formData),
+      });
+
+      setAccount(updatedAccount);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Error updating account:", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -167,10 +191,24 @@ export default function AccountDetailPage() {
           <h1 className="text-2xl font-bold text-white">{account.name}</h1>
           <p className="text-slate-400 text-sm">{account.industry}</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <Zap className="h-4 w-4 mr-2" />
-          Coletar Sinais
-        </Button>
+        <div>
+          {isEditing ? (
+            <div className="flex gap-2">
+              <Button onClick={handleUpdate} className="bg-green-600 hover:bg-green-700">
+                <Save className="h-4 w-4 mr-2" />
+                Salvar
+              </Button>
+              <Button variant="outline" onClick={() => setIsEditing(false)}>
+                Cancelar
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={() => setIsEditing(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Editar
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -182,38 +220,67 @@ export default function AccountDetailPage() {
         >
           <Card className="bg-slate-800/50 border-slate-700">
             <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                  <Building2 className="h-8 w-8 text-white" />
+              {isEditing ? (
+                <div className="space-y-4">
+                  <Input
+                    value={formData.name || ''}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="text-2xl font-bold"
+                  />
+                  <Input
+                    value={formData.industry || ''}
+                    onChange={(e) => setFormData({...formData, industry: e.target.value})}
+                  />
+                  <Textarea
+                    value={formData.description || ''}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    placeholder="Descrição da conta"
+                  />
+                  <Input
+                    value={formData.website || ''}
+                    onChange={(e) => setFormData({...formData, website: e.target.value})}
+                    placeholder="Website"
+                  />
+                  <Input
+                    value={formData.linkedinUrl || ''}
+                    onChange={(e) => setFormData({...formData, linkedinUrl: e.target.value})}
+                    placeholder="LinkedIn URL"
+                  />
                 </div>
-                <div className="flex-1">
-                  <p className="text-slate-300">{account.description}</p>
-                  <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                    {account.website && (
-                      <a
-                        href={account.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-blue-400 hover:text-blue-300"
-                      >
-                        <Globe className="h-4 w-4" />
-                        Website
-                      </a>
-                    )}
-                    {account.linkedinUrl && (
-                      <a
-                        href={account.linkedinUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-blue-400 hover:text-blue-300"
-                      >
-                        <Linkedin className="h-4 w-4" />
-                        LinkedIn
-                      </a>
-                    )}
+              ) : (
+                <div className="flex items-start gap-4">
+                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <Building2 className="h-8 w-8 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-slate-300">{account.description}</p>
+                    <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                      {account.website && (
+                        <a
+                          href={account.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-blue-400 hover:text-blue-300"
+                        >
+                          <Globe className="h-4 w-4" />
+                          Website
+                        </a>
+                      )}
+                      {account.linkedinUrl && (
+                        <a
+                          href={account.linkedinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-blue-400 hover:text-blue-300"
+                        >
+                          <Linkedin className="h-4 w-4" />
+                          LinkedIn
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-3 rounded-lg bg-slate-700/30">
